@@ -21,13 +21,15 @@ COORDS_JSON = DATA_DIR / "coords.json"        # reduce.py  (also copied to web/p
 INDEX_SQLITE = DATA_DIR / "index.sqlite"      # index.py
 
 # --- source data ---------------------------------------------------------
-# CMU Book Summary Dataset (CC BY-SA). See PLAN.md "Dataset status & access".
-# NOTE: this web env's network policy may block cs.cmu.edu; vendor via a GitHub
-# release mirror or widen the policy. Override with BOOKVECTOR_CMU_URL.
+# CMU Book Summary Dataset (CC BY-SA, see NOTICE), vendored as a GitHub release
+# because the primary host (https://www.cs.cmu.edu/~dbamman/data/booksummaries.tar.gz)
+# is blocked by this web env's network policy. Override with BOOKVECTOR_CMU_URL.
 CMU_URL = os.environ.get(
     "BOOKVECTOR_CMU_URL",
-    "https://www.cs.cmu.edu/~dbamman/data/booksummaries.tar.gz",
+    "https://github.com/elliot-verified/book-vector/releases/download/cmu-data-v1/booksummaries.tar.gz",
 )
+# sha256 of the vendored tarball; acquire.py verifies fresh downloads against it.
+CMU_SHA256 = "2593556158192774816102d1463565ad0e905e45f339976775fbc858ccf5e764"
 
 # --- models --------------------------------------------------------------
 # Extraction: cheap, batched (D6). Embeddings: local, free (D5).
