@@ -1,0 +1,20 @@
+book-vector — attribution for source data
+
+CMU Book Summary Dataset
+------------------------
+Plot summaries and metadata are derived from the CMU Book Summary Dataset
+(David Bamman, Carnegie Mellon University), which is released under a
+Creative Commons Attribution-ShareAlike License (CC BY-SA).
+
+    https://www.cs.cmu.edu/~dbamman/booksummaries.html
+
+The plot summaries themselves originate from Wikipedia and are likewise
+CC BY-SA. Any redistributed data derived from these summaries (e.g. extracted
+facet fields, embeddings) is provided under the same CC BY-SA terms, with
+attribution as above.
+
+TVTropes / DBTropes (optional, non-critical enrichment)
+-------------------------------------------------------
+If TVTropes-derived trope data is used, note it is licensed CC BY-NC-SA 3.0
+(NonCommercial). It is kept off the critical path (see PLAN.md, D2) and must
+not be redistributed for commercial use.
