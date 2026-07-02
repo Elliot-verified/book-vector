@@ -9,8 +9,6 @@ Emits `data/index.sqlite`, later shipped alongside the serverless fn.
 
 from __future__ import annotations
 
-import numpy as np
-
 from . import config
 from .facets import FACET_KEYS
 
@@ -18,7 +16,8 @@ from .facets import FACET_KEYS
 def build_index() -> None:
     import sqlite3
 
-    import sqlite_vec  # lazy import
+    import numpy as np  # lazy import
+    import sqlite_vec
 
     data = np.load(config.VECTORS_NPZ, allow_pickle=True)
     ids = data["ids"]

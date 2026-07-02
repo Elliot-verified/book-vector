@@ -25,5 +25,19 @@ pip install -e '.[dev]'
 python scripts/run_pipeline.py --limit 2000
 ```
 
+`acquire` fetches the canonical CMU tarball and **falls back to a GitHub mirror**
+of the raw `booksummaries.txt` when the primary host is blocked (this web env's
+policy 403s `cs.cmu.edu`); downloads resume on truncation. Override the sources
+with `BOOKVECTOR_CMU_URL` / `BOOKVECTOR_CMU_MIRROR_URL`.
+
+The front stages have no heavy dependencies, so you can produce `books.jsonl`
+without installing the ML stack — `acquire`/`ingest` (and the rest) lazy-import
+their deps:
+
+```bash
+python scripts/run_pipeline.py --limit 2000 \
+    --skip extract embed cluster reduce index   # acquire + ingest only
+```
+
 The **facet taxonomy** lives in `bookvector/facets.py` — it is the single source
 of truth for extraction and embedding, and the first thing to validate.

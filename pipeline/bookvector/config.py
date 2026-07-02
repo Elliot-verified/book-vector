@@ -13,6 +13,7 @@ PIPELINE_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.environ.get("BOOKVECTOR_DATA", PIPELINE_ROOT / "data"))
 
 CMU_TARBALL = DATA_DIR / "booksummaries.tar.gz"
+CMU_TXT = DATA_DIR / "booksummaries.txt"      # raw TSV (mirror serves this, not a tarball)
 BOOKS_JSONL = DATA_DIR / "books.jsonl"        # ingest.py
 FACETS_JSONL = DATA_DIR / "facets.jsonl"      # extract.py
 VECTORS_NPZ = DATA_DIR / "vectors.npz"        # embed.py
@@ -27,6 +28,13 @@ INDEX_SQLITE = DATA_DIR / "index.sqlite"      # index.py
 CMU_URL = os.environ.get(
     "BOOKVECTOR_CMU_URL",
     "https://www.cs.cmu.edu/~dbamman/data/booksummaries.tar.gz",
+)
+# Reachable fallback when the canonical host is blocked (as in this web env's
+# policy). A GitHub mirror of the raw `booksummaries.txt` — same CC BY-SA data,
+# same 7-column TSV; `ingest` reads plain text or the tarball transparently.
+CMU_MIRROR_URL = os.environ.get(
+    "BOOKVECTOR_CMU_MIRROR_URL",
+    "https://raw.githubusercontent.com/ShayanDarabi/Book-Summaries/master/booksummaries.txt",
 )
 
 # --- models --------------------------------------------------------------

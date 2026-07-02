@@ -11,8 +11,6 @@ from __future__ import annotations
 
 import json
 
-import numpy as np
-
 from . import config
 
 
@@ -20,6 +18,7 @@ def cluster(facet: str = "arc") -> dict:
     """Cluster books in one facet space; label clusters. `facet` is the axis
     along which emergent themes are discovered (default: character arc)."""
     import hdbscan  # lazy import
+    import numpy as np
 
     data = np.load(config.VECTORS_NPZ, allow_pickle=True)
     ids = data["ids"]

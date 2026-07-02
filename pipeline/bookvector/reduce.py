@@ -11,14 +11,13 @@ from __future__ import annotations
 
 import json
 
-import numpy as np
-
 from . import config
 from .facets import FACET_KEYS
 
 
 def reduce(facet: str = "arc") -> None:
-    import umap  # lazy import
+    import numpy as np  # lazy import
+    import umap
 
     data = np.load(config.VECTORS_NPZ, allow_pickle=True)
     ids = data["ids"]
@@ -36,7 +35,9 @@ def reduce(facet: str = "arc") -> None:
     print(f"[reduce] wrote {len(coords)} coords ('{facet}') -> {config.COORDS_JSON}")
 
 
-def _concat(data) -> np.ndarray:
+def _concat(data):
+    import numpy as np
+
     return np.concatenate([data[k] for k in FACET_KEYS], axis=1)
 
 

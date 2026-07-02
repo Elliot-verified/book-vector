@@ -10,6 +10,11 @@ Use --skip to resume partway (e.g. --skip acquire ingest extract).
 from __future__ import annotations
 
 import argparse
+import sys
+from pathlib import Path
+
+# Allow running from source (`python scripts/run_pipeline.py`) without an install.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from bookvector import acquire, cluster, config, embed, extract, index, ingest, reduce
 

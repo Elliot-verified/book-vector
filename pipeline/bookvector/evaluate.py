@@ -15,14 +15,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import numpy as np
-
 from . import config
 
 EVAL_PAIRS = config.DATA_DIR / "eval_pairs.jsonl"
 
 
 def evaluate(pairs_path: Path = EVAL_PAIRS) -> dict:
+    import numpy as np  # lazy import — keep the module importable dep-free
+
     data = np.load(config.VECTORS_NPZ, allow_pickle=True)
     id_to_row = {str(i): n for n, i in enumerate(data["ids"])}
 

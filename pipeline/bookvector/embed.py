@@ -9,14 +9,13 @@ from __future__ import annotations
 
 import json
 
-import numpy as np
-
 from . import config
 from .facets import FACET_KEYS
 
 
 def embed() -> None:
-    from sentence_transformers import SentenceTransformer  # lazy import
+    import numpy as np  # lazy import — keep the module importable dep-free
+    from sentence_transformers import SentenceTransformer
 
     model = SentenceTransformer(config.EMBEDDING_MODEL)
 
