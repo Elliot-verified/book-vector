@@ -31,3 +31,7 @@ web/public/data/*
 
 # Curated (not derived) — keep the hand-labeled eval set
 !pipeline/data/eval_pairs.jsonl
+
+# Deploy artifacts — committed so Vercel git builds have them (see PLAN.md)
+!web/public/data/galaxy.json
+!web/data/index.sqlite
