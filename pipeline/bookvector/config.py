@@ -14,6 +14,7 @@ DATA_DIR = Path(os.environ.get("BOOKVECTOR_DATA", PIPELINE_ROOT / "data"))
 
 CMU_TARBALL = DATA_DIR / "booksummaries.tar.gz"
 BOOKS_JSONL = DATA_DIR / "books.jsonl"        # ingest.py
+CATALOG_JSONL = DATA_DIR / "catalog.jsonl"    # curate.py (genre-balanced MVP subset)
 FACETS_JSONL = DATA_DIR / "facets.jsonl"      # extract.py
 VECTORS_NPZ = DATA_DIR / "vectors.npz"        # embed.py
 CLUSTERS_JSON = DATA_DIR / "clusters.json"    # cluster.py
