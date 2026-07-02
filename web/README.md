@@ -11,10 +11,14 @@ npm run dev      # http://localhost:5173
 
 ## Data
 
-- `public/data/coords.json` — precomputed UMAP coords from the pipeline
-  (`pipeline/data/coords.json`). Copy or symlink it here. Gitignored.
-- Live per-facet + composed queries go to the serverless function in `api/`
-  (backed by the pipeline's `index.sqlite`), per PLAN.md D9.
+Both artifacts are produced by the pipeline's `export` stage (gitignored):
+
+- `public/data/galaxy.json` — coords + book metadata + cluster theme labels;
+  the static galaxy loads this directly.
+- `data/index.sqlite` — the per-facet `sqlite-vec` index behind live queries.
+  In dev, a vite middleware serves `/api/query` from it with the same
+  `server/queryCore.ts` the Vercel function uses; on Vercel it ships with the
+  function via `vercel.json` `includeFiles`.
 
 ## Layout
 
@@ -22,10 +26,12 @@ npm run dev      # http://localhost:5173
 src/
   App.tsx                 # galaxy ⇄ constellation mode switch
   components/
-    Galaxy.tsx            # instanced point cloud (2D/3D)
-    Constellation.tsx     # nearest-neighbor graph around a book
-    FacetLens.tsx         # compose/weight facets to filter the galaxy
-    BookTooltip.tsx       # hover card
+    Galaxy.tsx            # instanced point cloud (2D/3D), cluster colors, hover
+    Constellation.tsx     # nearest neighbors + per-facet "why" chips
+    FacetLens.tsx         # compose/weight facets for queries
+    BookTooltip.tsx       # hover card (title, author, cluster theme)
   lib/api.ts              # client for the query function
-api/query.ts              # Vercel serverless: sqlite-vec per-facet queries
+server/queryCore.ts       # shared sqlite-vec weighted per-facet KNN
+api/query.ts              # Vercel serverless wrapper around queryCore
+vite.config.ts            # dev middleware exposing /api/query locally
 ```
