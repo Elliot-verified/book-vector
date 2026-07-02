@@ -3,7 +3,7 @@
 
     python scripts/run_pipeline.py --limit 2000
 
-Runs: acquire → ingest → extract → embed → cluster → reduce → index.
+Runs: acquire → ingest → extract → embed → cluster → reduce → index → export.
 Use --skip to resume partway (e.g. --skip acquire ingest extract).
 """
 
@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import argparse
 
-from bookvector import acquire, cluster, config, embed, extract, index, ingest, reduce
+from bookvector import (
+    acquire, cluster, config, embed, export, extract, index, ingest, reduce,
+)
 
-STAGES = ["acquire", "ingest", "extract", "embed", "cluster", "reduce", "index"]
+STAGES = ["acquire", "ingest", "extract", "embed", "cluster", "reduce", "index", "export"]
 
 
 def main() -> None:
@@ -38,6 +40,7 @@ def main() -> None:
     run("cluster", cluster.cluster)
     run("reduce", reduce.reduce)
     run("index", index.build_index)
+    run("export", export.export)
     print("\n[done] artifacts in", config.DATA_DIR)
 
 

@@ -4,6 +4,9 @@ One virtual table per facet so the serverless query function can do per-facet
 nearest-neighbor and composed (weighted) queries. At a few thousand books this
 is exact brute-force cosine — no approximate index needed.
 
+Rows whose facet text was empty are *omitted* from that facet's table (their
+mask is False) — a book with no twist should never be someone's twist-neighbor.
+
 Emits `data/index.sqlite`, later shipped alongside the serverless fn.
 """
 
@@ -35,10 +38,12 @@ def build_index() -> None:
 
     for facet in FACET_KEYS:
         dim = data[facet].shape[1]
+        mask = data[f"{facet}__mask"]
         db.execute(f"CREATE VIRTUAL TABLE vec_{facet} USING vec0(embedding float[{dim}])")
         db.executemany(
             f"INSERT INTO vec_{facet}(rowid, embedding) VALUES (?, ?)",
-            [(n, vec.astype(np.float32).tobytes()) for n, vec in enumerate(data[facet])],
+            [(n, vec.astype(np.float32).tobytes())
+             for n, (vec, ok) in enumerate(zip(data[facet], mask)) if ok],
         )
     db.commit()
     db.close()

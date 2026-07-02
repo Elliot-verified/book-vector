@@ -1,37 +1,57 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Galaxy } from "./components/Galaxy";
 import { Constellation } from "./components/Constellation";
 import { FacetLens } from "./components/FacetLens";
-import type { Book, FacetWeights } from "./types";
+import type { Book, FacetWeights, GalaxyData } from "./types";
 
 type Mode = { view: "galaxy" } | { view: "constellation"; bookId: string };
 
 export function App() {
-  const [books, setBooks] = useState<Book[]>([]);
+  const [data, setData] = useState<GalaxyData | null>(null);
   const [mode, setMode] = useState<Mode>({ view: "galaxy" });
   const [threeD, setThreeD] = useState(true);
   const [weights, setWeights] = useState<FacetWeights>({ arc: 1 });
 
   useEffect(() => {
-    // Precomputed galaxy coords from the pipeline (PLAN.md D9).
-    fetch("/data/coords.json")
-      .then((r) => (r.ok ? r.json() : {}))
-      .then((coords: Record<string, Book["coords"]>) =>
-        setBooks(
-          Object.entries(coords).map(([id, c]) => ({
-            id,
-            title: id, // TODO: join titles/authors from books metadata
-            author: "",
-            coords: c,
-          })),
-        ),
-      )
-      .catch(() => setBooks([]));
+    // Precomputed galaxy (coords + metadata + cluster labels) from the pipeline (D9).
+    fetch("/data/galaxy.json")
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setData)
+      .catch(() => setData(null));
   }, []);
 
+  const booksById = useMemo(() => {
+    const m = new Map<string, Book>();
+    data?.books.forEach((b) => m.set(b.id, b));
+    return m;
+  }, [data]);
+
+  if (!data) {
+    return (
+      <div style={{ padding: 32, fontFamily: "system-ui" }}>
+        <h2>book-vector</h2>
+        <p>
+          Loading galaxy… (if this never resolves, run the pipeline: it writes{" "}
+          <code>web/public/data/galaxy.json</code>)
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ position: "fixed", inset: 0 }}>
-      <div style={{ position: "absolute", zIndex: 10, padding: 12, display: "flex", gap: 8 }}>
+    <div style={{ position: "fixed", inset: 0, background: "#05060d", color: "#dde3f5" }}>
+      <div
+        style={{
+          position: "absolute",
+          zIndex: 10,
+          padding: 12,
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
+        <strong>book-vector</strong>
         <button onClick={() => setThreeD((v) => !v)}>{threeD ? "3D" : "2D"}</button>
         {mode.view === "constellation" && (
           <button onClick={() => setMode({ view: "galaxy" })}>← galaxy</button>
@@ -41,12 +61,18 @@ export function App() {
 
       {mode.view === "galaxy" ? (
         <Galaxy
-          books={books}
+          books={data.books}
+          clusterNames={data.clusters}
           threeD={threeD}
           onSelect={(bookId) => setMode({ view: "constellation", bookId })}
         />
       ) : (
-        <Constellation bookId={mode.bookId} weights={weights} threeD={threeD} />
+        <Constellation
+          book={booksById.get(mode.bookId)!}
+          booksById={booksById}
+          weights={weights}
+          onSelect={(bookId) => setMode({ view: "constellation", bookId })}
+        />
       )}
     </div>
   );

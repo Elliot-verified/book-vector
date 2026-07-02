@@ -1,31 +1,67 @@
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import type { Book } from "../types";
+import { BookTooltip } from "./BookTooltip";
 
 interface Props {
   books: Book[];
+  clusterNames: Record<string, string>;
   threeD: boolean;
   onSelect: (bookId: string) => void;
 }
 
+/** Deterministic, well-spread cluster colors; noise (-1) is dim gray. */
+function clusterColor(cluster: number): THREE.Color {
+  if (cluster < 0) return new THREE.Color("#3a3f52");
+  const hue = (cluster * 0.61803398875) % 1; // golden-ratio hop around the wheel
+  return new THREE.Color().setHSL(hue, 0.65, 0.62);
+}
+
 /**
  * The galaxy: an instanced point cloud of every book, positioned by precomputed
- * UMAP coords. Instancing keeps 10k+ points smooth. Click a point to dive into
- * its constellation. TODO: color by cluster, hover → BookTooltip.
+ * UMAP coords and colored by emergent cluster. Click a point to dive into its
+ * constellation; hover shows the book + its cluster's theme label.
  */
-export function Galaxy({ books, threeD, onSelect }: Props) {
+export function Galaxy({ books, clusterNames, threeD, onSelect }: Props) {
+  const [hover, setHover] = useState<{ book: Book; x: number; y: number } | null>(null);
+
   return (
-    <Canvas camera={{ position: [0, 0, 40], fov: 60 }}>
-      <ambientLight intensity={0.8} />
-      <Points books={books} threeD={threeD} onSelect={onSelect} />
-      <OrbitControls enableRotate={threeD} />
-    </Canvas>
+    <>
+      <Canvas camera={{ position: [0, 0, 40], fov: 60 }}>
+        <ambientLight intensity={1.2} />
+        <Points
+          books={books}
+          threeD={threeD}
+          onSelect={onSelect}
+          onHover={(book, x, y) => setHover(book ? { book, x, y } : null)}
+        />
+        <OrbitControls enableRotate={threeD} />
+      </Canvas>
+      {hover && (
+        <BookTooltip
+          book={hover.book}
+          clusterName={clusterNames[String(hover.book.cluster)]}
+          x={hover.x}
+          y={hover.y}
+        />
+      )}
+    </>
   );
 }
 
-function Points({ books, threeD, onSelect }: Props) {
+function Points({
+  books,
+  threeD,
+  onSelect,
+  onHover,
+}: {
+  books: Book[];
+  threeD: boolean;
+  onSelect: (bookId: string) => void;
+  onHover: (book: Book | null, x: number, y: number) => void;
+}) {
   const ref = useRef<THREE.InstancedMesh>(null);
 
   const positions = useMemo(
@@ -38,15 +74,17 @@ function Points({ books, threeD, onSelect }: Props) {
     [books, threeD],
   );
 
-  useMemo(() => {
+  useEffect(() => {
     if (!ref.current) return;
     const m = new THREE.Matrix4();
     positions.forEach((p, i) => {
       m.setPosition(p[0], p[1], p[2]);
       ref.current!.setMatrixAt(i, m);
+      ref.current!.setColorAt(i, clusterColor(books[i].cluster));
     });
     ref.current.instanceMatrix.needsUpdate = true;
-  }, [positions]);
+    if (ref.current.instanceColor) ref.current.instanceColor.needsUpdate = true;
+  }, [positions, books]);
 
   return (
     <instancedMesh
@@ -56,9 +94,15 @@ function Points({ books, threeD, onSelect }: Props) {
         e.stopPropagation();
         if (e.instanceId != null) onSelect(books[e.instanceId].id);
       }}
+      onPointerMove={(e) => {
+        if (e.instanceId != null) {
+          onHover(books[e.instanceId], e.clientX, e.clientY);
+        }
+      }}
+      onPointerOut={() => onHover(null, 0, 0)}
     >
-      <sphereGeometry args={[0.15, 8, 8]} />
-      <meshStandardMaterial color="#8ab4ff" />
+      <sphereGeometry args={[0.16, 8, 8]} />
+      <meshStandardMaterial />
     </instancedMesh>
   );
 }

@@ -20,6 +20,9 @@ CLUSTERS_JSON = DATA_DIR / "clusters.json"    # cluster.py
 COORDS_JSON = DATA_DIR / "coords.json"        # reduce.py  (also copied to web/public/data)
 INDEX_SQLITE = DATA_DIR / "index.sqlite"      # index.py
 
+WEB_DATA_DIR = PIPELINE_ROOT.parent / "web" / "public" / "data"
+GALAXY_JSON = WEB_DATA_DIR / "galaxy.json"    # export.py — coords + metadata for the app
+
 # --- source data ---------------------------------------------------------
 # CMU Book Summary Dataset (CC BY-SA). See PLAN.md "Dataset status & access".
 # NOTE: this web env's network policy may block cs.cmu.edu; vendor via a GitHub
@@ -30,14 +33,22 @@ CMU_URL = os.environ.get(
 )
 
 # --- models --------------------------------------------------------------
-# Extraction: cheap, batched (D6). Embeddings: local, free (D5).
+# Extraction + labels: cheap (D6/D8). Embeddings: local, free (D5).
 EXTRACTION_MODEL = os.environ.get("BOOKVECTOR_EXTRACT_MODEL", "claude-haiku-4-5-20251001")
-EMBEDDING_MODEL = os.environ.get("BOOKVECTOR_EMBED_MODEL", "BAAI/bge-large-en-v1.5")
+LABEL_MODEL = os.environ.get("BOOKVECTOR_LABEL_MODEL", EXTRACTION_MODEL)
+# bge-base via fastembed's GCS mirror: this env's network policy blocks
+# huggingface.co, and storage.googleapis.com only hosts base/small. On a
+# machine with HF access, set BOOKVECTOR_EMBED_BACKEND=sentence-transformers
+# and BOOKVECTOR_EMBED_MODEL=BAAI/bge-large-en-v1.5 for the D5 default.
+EMBEDDING_MODEL = os.environ.get("BOOKVECTOR_EMBED_MODEL", "BAAI/bge-base-en-v1.5")
+EMBED_BACKEND = os.environ.get("BOOKVECTOR_EMBED_BACKEND", "fastembed")
 
 # --- catalog / knobs -----------------------------------------------------
 DEFAULT_CATALOG_LIMIT = 2000   # ~2–3k MVP catalog (D4)
+GALAXY_SPACE = "concat"        # space for the galaxy layout + emergent clusters
 UMAP_N_COMPONENTS = 3          # galaxy is 3D; also emit 2D for comparison
 UMAP_N_NEIGHBORS = 15
+CLUSTER_UMAP_DIMS = 20         # HDBSCAN runs on a UMAP reduction, not raw 1024-d
 HDBSCAN_MIN_CLUSTER_SIZE = 8
 KNN_DEFAULT = 12               # constellation neighbors
 
