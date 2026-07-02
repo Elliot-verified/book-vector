@@ -35,8 +35,13 @@ def cluster(facet: str = config.GALAXY_SPACE) -> dict:
         random_state=42,
     ).fit_transform(vectors[mask])
 
+    # 'leaf' + min_samples=1 is the granularity dial (PLAN.md): 'eom' collapses
+    # the space into 2 mega-clusters; leaf yields ~80 specific themes.
     clusterer = hdbscan.HDBSCAN(
-        min_cluster_size=config.HDBSCAN_MIN_CLUSTER_SIZE, metric="euclidean"
+        min_cluster_size=config.HDBSCAN_MIN_CLUSTER_SIZE,
+        min_samples=1,
+        cluster_selection_method="leaf",
+        metric="euclidean",
     )
     masked_labels = clusterer.fit_predict(reduced)  # -1 == noise
 

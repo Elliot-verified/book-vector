@@ -220,6 +220,45 @@ CMU Book Summary Dataset (16.5k books, plot summaries + author/title/genre)
   hand-labeled "share a theme / don't" set early to tune the dial and detect
   surface-feature collapse.
 
+## Execution status (2026-07-02)
+
+Milestones 1–7 are **done**; the pipeline has run end-to-end in this repo and
+the app has been verified against the artifacts it produced.
+
+- **Catalog:** 2,000 genre-balanced books ingested (rarest-genre round-robin);
+  1,944 survived extraction (56 non-narrative works dropped for having <3
+  facets).
+- **Extraction:** Haiku + Batch API with structured outputs (guaranteed-valid
+  JSON), resumable via `data/batch_id.txt`; 1,997/2,000 succeeded in-batch, 3
+  retried directly. Cost ~$1.
+- **Embeddings (deviation from D5):** `bge-base-en-v1.5` via fastembed's ONNX
+  mirror on `storage.googleapis.com` — this environment's network policy blocks
+  `huggingface.co`, so `bge-large` was unreachable. The sentence-transformers /
+  bge-large path remains available via `BOOKVECTOR_EMBED_BACKEND`.
+- **Clustering:** the granularity dial landed on UMAP(20d) → HDBSCAN with
+  `cluster_selection_method="leaf"`, `min_cluster_size=8`: 84 clusters,
+  ~36% noise. Default `eom` selection collapses the space into 2 mega-clusters.
+  Labels are at north-star specificity (e.g. *"women discovering they were
+  pawns in others' orchestrated schemes"*, *"orphaned outsider discovers true
+  identity while learning to choose love over destiny"*).
+- **Milestone-5 audit:** per-facet nearest neighbors share a genre only 32–41%
+  of the time vs a 28% random baseline (arc: 31.8%) — the spaces did **not**
+  collapse to genre. Disentangled similarity spot-checks pass: *What Dreams May
+  Come* under an arc-only lens retrieves *The Death of Ivan Ilyich* and a
+  Thoreau-style memoir of accepting mortality.
+- **Eval seed (D14):** 13 hand-labeled arc pairs in
+  `pipeline/data/eval_pairs.jsonl`; share pairs mean cosine 0.71 vs differ
+  0.65. Margin is thin in absolute terms (bge similarity range is compressed) —
+  ranking quality is the metric that matters and is good; tightening this is
+  milestone-8 work.
+- **Serving:** galaxy.json (static) + sqlite-vec weighted per-facet queries via
+  a shared `queryCore` running identically under vite dev middleware and the
+  Vercel function. Deployment to Vercel (D12) has not been run yet.
+
+Remaining (milestone 8 / post-v1): granularity-dial iteration against the eval
+set, richer constellation rendering (currently a ranked list with per-facet
+"why" chips), full 16.5k extraction, TVTropes cross-check, Vercel deploy.
+
 ## Future (post-v1)
 
 - **Full-catalog extraction:** extend Haiku extraction to all 16.5k (still cheap).

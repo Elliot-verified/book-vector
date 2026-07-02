@@ -31,7 +31,8 @@ def reduce(facet: str = config.GALAXY_SPACE) -> None:
 
     masked_ids = np.asarray(ids)[mask]
     coords = {
-        str(i): {"xyz": [round(v, 3) for v in xyz[n]], "xy": [round(v, 3) for v in xy[n]]}
+        str(i): {"xyz": [round(float(v), 3) for v in xyz[n]],
+                 "xy": [round(float(v), 3) for v in xy[n]]}
         for n, i in enumerate(masked_ids)
     }
     config.COORDS_JSON.write_text(json.dumps(coords))

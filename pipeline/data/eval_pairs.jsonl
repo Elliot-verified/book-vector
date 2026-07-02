@@ -1,0 +1,13 @@
+{"a": "5534091", "b": "1453348", "facet": "arc", "label": "share", "note": "What Dreams May Come / Death of Ivan Ilyich — denial of death to acceptance"}
+{"a": "5534091", "b": "1196343", "facet": "arc", "label": "share", "note": "What Dreams May Come / Five People You Meet in Heaven — afterlife reckoning to acceptance"}
+{"a": "1808515", "b": "29228070", "facet": "arc", "label": "share", "note": "Galactic Railroad / Mourning Ruby — grief toward acceptance and perseverance"}
+{"a": "8237", "b": "57344", "facet": "arc", "label": "share", "note": "Don Quixote / Emma — awakening from self-deception"}
+{"a": "620", "b": "23454753", "facet": "arc", "label": "share", "note": "Animal Farm / 1984 — idealism crushed into capitulation under new oppressors"}
+{"a": "18580673", "b": "28828819", "facet": "arc", "label": "share", "note": "Frankenstein / Conan the Great — descent through hubris/vainglory"}
+{"a": "55438", "b": "36681", "facet": "arc", "label": "share", "note": "Jane Eyre / Brave New World — awakening to autonomy against oppressive systems (weaker)"}
+{"a": "5534091", "b": "30292", "facet": "arc", "label": "differ", "note": "What Dreams May Come / The Hobbit — acceptance-of-death vs timidity-to-heroism"}
+{"a": "8237", "b": "7923", "facet": "arc", "label": "differ", "note": "Don Quixote / Dracula — disillusionment-from-fantasy vs innocence-destroyed-by-evil"}
+{"a": "30292", "b": "28828819", "facet": "arc", "label": "differ", "note": "The Hobbit / Conan the Great — same genre, opposite arcs (rise vs descent)"}
+{"a": "10862", "b": "57344", "facet": "arc", "label": "differ", "note": "Metamorphosis / Emma — self-erasure vs social awakening"}
+{"a": "23454753", "b": "1196343", "facet": "arc", "label": "differ", "note": "1984 / Five People — capitulation vs redemptive understanding"}
+{"a": "7923", "b": "29228070", "facet": "arc", "label": "differ", "note": "Dracula / Mourning Ruby — evil-knowledge vs grief-reconstruction"}

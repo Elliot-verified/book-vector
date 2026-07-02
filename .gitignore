@@ -28,3 +28,6 @@ web/public/data/*
 
 # OS
 .DS_Store
+
+# Curated (not derived) — keep the hand-labeled eval set
+!pipeline/data/eval_pairs.jsonl
