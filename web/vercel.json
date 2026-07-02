@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "api/query.ts": {
-      "includeFiles": "data/**"
+      "includeFiles": "{data/**,node_modules/sqlite-vec-linux-x64/**,node_modules/better-sqlite3/build/Release/*.node}"
     }
   }
 }
