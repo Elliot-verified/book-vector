@@ -3,8 +3,8 @@
 A book recommendation tool that lets a user explore a high-dimensional vector
 database of books as a **3D visualization**, where proximity means *"these
 books share a specific narrative theme."* The aim is to cluster **more
-specifically than genre** — at the level of narrative situations and tropes,
-not topics.
+specifically than genre** — at the level of narrative situations, arcs, and
+tropes, not topics.
 
 ## North star
 
@@ -16,62 +16,92 @@ Most book tools cluster at the genre/topic level ("Romance," "Coming of age").
 - *"A dark villain turns out to be the good guy"* (not just "Uplifting")
 - *"Older protagonists who find a second wind for love"* (not just "Romance")
 
-Rich semantic information is the *asset*, not the enemy: we lean into it to make
-clusters more specific, and use human-curated structural metadata to capture
-narrative arcs (twists, transformations) that surface text doesn't expose.
+Rich semantic information is the *asset*, not the enemy: we lean into it and
+**decompose each book into per-facet vectors** so similarity and specificity can
+operate one narrative axis at a time.
 
-## Locked-in decisions
+## The core capability we're building for
 
-| Decision | Choice | Why |
-|---|---|---|
-| **Clustering goal** | Thematic micro-clusters (more specific than genre) | The whole point — specific themes are useful *and* auditable |
-| **Embedding (v1)** | **Zero-generation:** local embeddings of existing plot summaries + crowd trope tags as facets | No per-book Claude cost; prove the space before spending |
-| **Viz** | Galaxy overview + dive-in constellation, toggleable | Discovery by wandering *and* "find books like X" |
-| **Primary dataset** | **CMU Book Summary Dataset** (confirmed: free, CC BY-SA, ~16.5k books) | Plot-complete summaries — captures arcs/twists blurbs hide |
-| **Facet source** | TVTropes / DBTropes (pending access confirmation) | Crowd has already distilled structural tropes (e.g. `Heel–Face Turn`) |
+A facet buys one of two things; we are explicitly building the harder one:
 
-## Why zero-generation
+1. **Filtering / composition** — "books that are *both* about older protagonists
+   *and* a second-wind romance." (Intersection.)
+2. **Disentangled similarity** — "books with a *similar relationship arc*,
+   ignoring setting." (Compare along one axis, ignore the rest.)
 
-The expensive LLM operation is **generation** (synthesizing new text per book),
-not **embedding**. So v1 spends $0 on generation by standing on two free assets:
+We are building for **(2)** — the "these two books share a soul in their arc
+even though everything on the surface differs" experience. Only true per-facet
+vectors deliver it. (Filtering falls out for free once we have them.)
 
-1. **Plot summaries already exist** — the CMU dataset has 16,559 Wikipedia plot
-   summaries. We don't generate them; we embed them with a **local
-   open-source embedding model** (`bge-large` / `e5` / `nomic-embed` via
-   sentence-transformers) — free, runs on a modest GPU/CPU.
-2. **Structural distillation already done by the crowd** — TVTropes tropes are
-   named narrative features (`Heel–Face Turn` = villain turns good,
-   `December–December Romance` = older second-wind love, `Coming-of-Age Story`).
-   These map almost 1:1 onto the target themes and require no generation.
+## Architecture decisions (locked)
 
-Any Claude pass is deferred past v1, and even then would be Haiku + Batch API on
-a small enrichment subset — not the whole catalog.
+| # | Decision | Choice | Notes |
+|---|---|---|---|
+| D1 | **Commercial posture** | Commercial-viable | Facets come from our own extraction of CC-BY-SA summaries — no non-commercial dependency in v1 |
+| D2 | **Trope source role** | Optional enrichment / validation only | TVTropes (CC BY-NC-SA) is off the critical path; used to cross-check facets, never as the backbone |
+| D4 | **Catalog scope** | ~2–3k curated books first | Genre-balanced subset; expand toward full 16.5k after the space is validated |
+| D5 | **Embedding model** | Local open model | `bge-large` / `nomic-embed` via sentence-transformers; $0, no API dependency |
+| **D6** | **Facet realization** | **Option B — true per-facet vectors** | LLM *extracts* facet fields from each summary; embed each field separately |
+| D7 | **Facet taxonomy** | ~5 facets (see below) | The extraction schema is the heart of the pipeline |
+| D8 | **Clustering** | HDBSCAN offline + per-cluster LLM labels | Labels are per-cluster, not per-book — cheap |
+| D9 | **Serving model** | Hybrid | Static precomputed galaxy JSON + a serverless `sqlite-vec` function for live per-facet queries |
+| D10 | **Nearest-neighbor** | Exact brute-force cosine | A few thousand books — no approximate index needed |
+| D11 | **Frontend** | React + react-three-fiber + TS | 2D/3D toggle |
+| D12 | **Deploy** | Vercel | Static galaxy + serverless query fn |
+| D13 | **Repo layout** | Monorepo | `pipeline/` (Python) + `web/` (React) |
+| D14 | **Evaluation** | Seed a hand-labeled theme-pair set early | Tune the granularity dial; catch surface-feature collapse |
 
-## The embedding: faceted semantic vectors
+## Cost model: minimal, cheap extraction (not zero-generation)
 
-A single blurb-level embedding clusters by **surface features** (setting, genre
-furniture). The target themes are **structural** (arc, twist, protagonist
-attribute). Two design moves get us there:
+We chose **Option B**, so v1 is no longer strictly zero-generation — but the
+spend is tiny and bounded:
 
-1. **Embed plot summaries, not blurbs.** Plot summaries are spoiler-complete, so
-   arc/twist themes ("villain turns good") are actually present in the text.
-   This is why the CMU dataset matters specifically.
-2. **Faceted multi-vector representation.** Decompose each book into separate
-   facet vectors so specificity is *composable*:
-   - protagonist archetype
-   - central relationship / dynamic
-   - transformation / character arc
-   - setting-as-narrative-device
-   - twist / structural type
-   - (later) affective tone
+- **Not** per-book prose synthesis. We run **extraction only**: an LLM reads a
+  summary and emits a small structured JSON of facet fields.
+- **Haiku + Batch API** over the ~2–3k MVP summaries is **cents to low single
+  dollars**; even the full 16.5k stays cheap.
+- Embeddings remain **$0** — a local sentence-transformers model embeds each
+  extracted facet field.
+- Cluster labeling is a **handful of calls per cluster**, not per book.
 
-   "Older protagonists" (protagonist facet) ∩ "second-wind love" (relationship
-   facet) produces the micro-cluster on demand — without needing one book that
-   matches every facet at once.
+The real cost of Option B is **validation effort**, not tokens — see risks.
 
-In v1, facets are sourced cheaply: plot-summary embeddings give the semantic
-base; TVTropes tropes (grouped into facet categories) give the structural
-overlay. No generation required.
+## The embedding: true per-facet vectors (Option B)
+
+A single whole-summary embedding blends everything (setting bleeds into arc).
+To get disentangled similarity we decompose per book:
+
+1. **Extract facet fields** from each plot summary via a cheap LLM pass into a
+   strict schema (D7):
+   - `protagonist` — archetype / defining attributes (e.g. "aging widower")
+   - `relationship` — central dynamic (e.g. "second-wind late-life romance")
+   - `arc` — transformation / character change (e.g. "coming-of-age realization")
+   - `setting_as_device` — how setting functions narratively (e.g. "displacement
+     abroad forces self-confrontation")
+   - `twist` — structural/moral turn (e.g. "antagonist revealed as the moral
+     center")
+2. **Embed each field separately** (local model) → ~5 vectors per book.
+3. **Query per facet:** high cosine in the relationship space + low in the
+   setting space = "similar romance, different world." Compose facets with
+   weights for the intersection queries too.
+
+Because facets come from **our own extraction of the CC-BY-SA summaries**, this
+approach is full-coverage (every book with a summary), uses **our** taxonomy
+rather than TVTropes', and carries **no NC license exposure** (D1/D2).
+
+### Extraction schema is the product
+The facet taxonomy + extraction prompt *is* the heart of the pipeline. Extraction
+quality flows straight into the vectors, so prompt design + a validation pass are
+the main engineering work (replacing "the join" as the biggest task). Normalize
+aggressively (controlled vocabulary where possible) to keep facet spaces clean.
+
+## TVTropes: validation, not backbone
+
+With Option B, tropes are demoted to an **optional cross-check**: does our
+extracted `twist` facet agree with the `Heel–Face Turn` trope where both exist?
+Useful as a quality signal on extraction, and as coverage glue for
+under-described books — but nothing depends on it, so the CC BY-NC-SA license
+never touches the critical path. Wiring tropes in is a post-v1 nicety.
 
 ## The central tension: the granularity dial
 
@@ -81,126 +111,120 @@ Specificity trades against cluster size:
 - Too fine → "older + second-wind + abroad + villain-redemption" matches *zero
   books*. Hyper-specific themes are singletons — no cluster, no recommendation.
 
-The sweet spot varies by theme, which is *why* the design is faceted and
+The sweet spot varies by theme, which is *why* the design is per-facet and
 composable rather than one global cluster resolution. Managing this dial is the
-core craft of v1 and replaces "genre collapse" as the risk to watch.
+core craft of v1.
 
 ## Clustering: emergent + curated lenses
 
-Two complementary modes (the target examples favor the second):
-
-- **Emergent:** embed → cluster (HDBSCAN) → **LLM labels each discovered
-  cluster** post-hoc ("these 14 books share: coming-of-age abroad"). Discovery
-  layer. Caveat: dominant variance is often still setting/genre, so crisp themes
-  may not self-organize. (Labeling is a tiny, cheap LLM use — a handful of calls
-  per cluster, not per book; compatible with the zero-generation budget.)
-- **Curated / queryable lenses:** name a specific theme (or compose facets) and
-  retrieve/highlight matching books in the galaxy — faceted semantic search.
-  This reliably produces the exact target examples.
-
-Plan: curated/faceted as the primary navigation, emergent clustering as a
-"themes you didn't ask for" discovery layer on top.
+- **Curated / faceted lenses (primary):** name a theme or compose facets with
+  weights → retrieve/highlight matching books. Reliably produces the target
+  examples; this is where disentangled similarity shines.
+- **Emergent (discovery layer):** cluster (HDBSCAN) → per-cluster LLM labels
+  ("these 14 share: coming-of-age abroad"). "Themes you didn't ask for."
 
 ## The 3D visualization
 
 Two modes, toggleable:
 
-1. **Galaxy** — project all book vectors to 3D once (offline) with **UMAP**,
-   cache coords. Render as a star map; color by dominant facet/theme.
+1. **Galaxy** — project book vectors to 3D once (offline) with **UMAP**, cache
+   coords. Star map; color by dominant facet/theme. (Projection is over a chosen
+   facet or a concatenation — a UI decision to explore.)
 2. **Constellation** — pick a book, show it + K nearest neighbors as a
-   force-directed graph, edges weighted by similarity, with *why* (shared
-   facets/tropes) surfaced.
+   force-directed graph, edges weighted by per-facet similarity, with *why*
+   (which facets match) surfaced.
 
 Diving from a galaxy point into its constellation is the core interaction loop.
 
 ### Rendering stack
 - `three.js` + `react-three-fiber` — instanced meshes handle 10k+ points.
 - Build the projection so it can **also render in 2D** — the value of the 3rd
-  dimension for browsing is unproven (occlusion/disorientation); we want to
-  compare, not assume.
+  dimension for browsing is unproven; compare, don't assume.
 
-## Data pipeline (zero-generation v1)
+## Data pipeline (v1)
 
 ```
 CMU Book Summary Dataset (16.5k books, plot summaries + author/title/genre)
         │
-        ├─ join ─►  TVTropes / DBTropes trope tags   (entity resolution by title+author)
-        │           Goodreads/LibraryThing tags (coverage glue)
         ▼
-   local embedding model (sentence-transformers)  ──►  facet vectors  (FREE)
+   LLM facet extraction (Haiku + Batch)  ──►  per-book facet JSON  (cheap)
         │
-        ├─►  HDBSCAN clustering ──► (cheap) LLM cluster labels
+        ▼
+   local embedding model (sentence-transformers)  ──►  ~5 facet vectors/book  ($0)
         │
+        ├─►  HDBSCAN clustering ──► per-cluster LLM labels
         ├─►  UMAP (offline) ──► coords3d.json
+        └─►  sqlite-vec index (per-facet nearest-neighbor + composed queries)
         │
-        └─►  FAISS / sqlite-vec index (nearest-neighbor + faceted query)
         ▼
-   web app (r3f galaxy + constellation, faceted lenses)
+   web app: static galaxy (r3f, 2D/3D) + serverless query fn (faceted lenses)
+        ▲
+        └─ (optional) TVTropes tags joined in as a validation cross-check
 ```
 
-- **MVP catalog:** start with a few thousand well-covered books from the join,
-  not all 16.5k — enough to form real clusters, cheap to iterate on.
-- **Vector store:** `numpy` + FAISS or `sqlite-vec`. No managed vector DB at
-  this scale.
+- **MVP catalog:** ~2–3k genre-balanced books, not all 16.5k.
+- **Vector store:** `sqlite-vec` (or `numpy` + brute-force cosine) — no managed
+  vector DB at this scale.
 
 ## Dataset status & access
 
-- **CMU Book Summary Dataset** — ✅ confirmed available. 16,559 books, Wikipedia
-  plot summaries + Freebase metadata (author/title/genre/date), **CC BY-SA**,
-  17 MB `booksummaries.tar.gz`. Official page + Kaggle mirror.
-  - ⚠️ **Network caveat:** this Claude-Code-on-the-web environment's network
-    policy currently blocks `www.cs.cmu.edu` (proxy returns 403 to CONNECT). To
-    ingest inside a web session we must either widen the env network policy to
-    allow the host, or vendor the tarball in via an allowed mirror. Not a
-    blocker for the project; it's an environment setting.
-  - **License note:** CC BY-SA is share-alike — attribute and license-alike any
-    redistributed derived data (e.g. published vectors).
-- **TVTropes / DBTropes** — ⏳ access + license to confirm as a v1 ingestion
-  task.
+- **CMU Book Summary Dataset** — ✅ confirmed. 16,559 books, Wikipedia plot
+  summaries + metadata (author/title/genre/date), **CC BY-SA**, 17 MB
+  `booksummaries.tar.gz`. Official page + Kaggle mirror.
+  - ⚠️ **Network:** this web environment's policy blocks `www.cs.cmu.edu` (proxy
+    403 on CONNECT). Ingest by widening the env network policy *or* vendoring the
+    tarball via a reachable host (GitHub release; `github.com` /
+    `raw.githubusercontent.com` are reachable here). CC BY-SA permits
+    redistribution with attribution + share-alike (add a NOTICE file).
+- **TVTropes / DBTropes** — optional (D2). Sources: DBTropes RDF (structured but
+  possibly stale), HuggingFace dumps (fresh, raw). **License CC BY-NC-SA 3.0
+  (non-commercial)** — kept off the critical path, so it does not constrain a
+  commercial v1. Do **not** vendor tropes into the repo; widen policy or scrape
+  at build time if used.
 
 ## MVP milestones
 
-1. **Acquire** — get CMU dataset into the env (open network policy or vendor in);
-   confirm TVTropes/DBTropes access + license.
-2. **Join** — entity-resolve CMU ↔ tropes ↔ tags by title+author (ISBN /
-   OpenLibrary IDs where present). *This is the unglamorous time sink.*
-3. **Embed** — local embedding model over plot summaries → facet vectors. $0.
-4. **Cluster + reduce** — HDBSCAN; cheap LLM labels; UMAP → `coords3d.json`.
-   Hand-audit: are clusters thematically specific, or secretly genre? (Test the
-   north-star examples directly.)
-5. **Render** — r3f galaxy (2D + 3D toggle), hover tooltip, color by theme.
-6. **Constellation + lenses** — nearest neighbors with shared-facet "why";
-   faceted/curated theme lenses.
-7. **Iterate** — tune the granularity dial; refine facet definitions from real
-   clusters.
+1. **Acquire** — CMU dataset into the env (widen policy or vendor via GitHub
+   release).
+2. **Design the extraction schema** — facet taxonomy + prompt; iterate on a
+   handful of books until fields are clean and consistent. *This is the product.*
+3. **Extract** — Haiku + Batch over the ~2–3k subset → facet JSON. Spot-check.
+4. **Embed** — local model over each facet field → per-facet vectors. $0.
+5. **Cluster + reduce** — HDBSCAN; per-cluster labels; UMAP → `coords3d.json`.
+   Hand-audit against the north-star examples: specific themes, or secretly
+   genre?
+6. **Render** — r3f galaxy (2D + 3D toggle), hover tooltip, color by theme.
+7. **Constellation + lenses** — per-facet nearest neighbors with "why";
+   composable faceted lenses via the serverless `sqlite-vec` fn.
+8. **Iterate** — tune the granularity dial; refine facet definitions from real
+   clusters. (Optional: join TVTropes as validation.)
 
 ## Risks & open assumptions
 
-- **Granularity dial (central):** too-specific themes collapse to singletons,
-  too-coarse to genre. Mitigated by composable facets; still needs hands-on
-  tuning. *We won't know the sweet spot until we see real clusters.*
-- **Do target themes actually emerge?** The examples read like curated queries,
-  not guaranteed unsupervised clusters. Mitigation: curated/faceted lenses as
-  primary, emergent clustering as discovery layer.
-- **Surface-feature collapse:** plot-summary embeddings may still cluster by
-  setting/genre rather than arc. Mitigation: faceted decomposition + trope
-  overlay; *audit against the north-star examples early* (milestone 4).
-- **Coverage ceiling:** CMU + TVTropes skew toward *notable* / genre-popular
-  titles; literary long tail is thin and under-tagged. Acceptable for an MVP
-  (notable books = books people seek), but a real limit.
-- **The join is the work:** no shared IDs across datasets; fuzzy
-  entity-resolution is the largest v1 task. Free, but slow.
-- **Is the 3rd dimension worth it?** 3D point clouds demo well but browse
-  poorly. Mitigation: 2D/3D toggle, compare in practice.
-- **Evaluation (now tractable):** specific themes are *auditable* — open a
-  cluster and read it. Seed a small hand-labeled "these share a theme / don't"
-  set early to tune the dial and detect surface-feature collapse.
+- **Extraction quality (new #1 risk):** LLM facet extraction can hallucinate or
+  normalize inconsistently, and that garbage flows straight into the vectors.
+  Mitigation: tight schema, controlled vocabulary, a validation pass, and
+  spot-checks; optional TVTropes cross-check. *This is the main engineering work.*
+- **Granularity dial:** too-specific → singletons, too-coarse → genre. Mitigated
+  by per-facet composition; still needs hands-on tuning against real clusters.
+- **Do target themes emerge?** Examples read like curated queries. Mitigation:
+  faceted lenses primary, emergent clustering as discovery.
+- **Surface-feature collapse:** facet vectors may still cluster by setting/genre.
+  Mitigation: per-facet decomposition is the direct defense; audit against
+  north-star examples early (milestone 5).
+- **Coverage ceiling:** CMU skews toward *notable* titles; literary long tail is
+  thin. Acceptable for MVP, but a real limit.
+- **Is the 3rd dimension worth it?** 3D point clouds demo well but browse poorly.
+  Mitigation: 2D/3D toggle, compare in practice.
+- **Evaluation:** specific themes are auditable — read a cluster. Seed a small
+  hand-labeled "share a theme / don't" set early to tune the dial and detect
+  surface-feature collapse.
 
 ## Future (post-v1)
 
-- **Optional LLM enrichment:** Haiku + Batch API to distill narrative profiles
-  for books the crowd missed — small subset, still cheap.
+- **Full-catalog extraction:** extend Haiku extraction to all 16.5k (still cheap).
+- **TVTropes enrichment:** join tropes as a validation signal / coverage glue.
 - **Personalization:** rate a few books, weight facets to taste, re-center the
   galaxy.
 - **Affective facet:** fold the original "how it makes you feel" idea back in as
-  one facet among the structural ones.
+  one more facet alongside the structural ones.
