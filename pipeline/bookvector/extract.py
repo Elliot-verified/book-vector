@@ -62,6 +62,16 @@ def extract(limit: int | None = None) -> int:
 
 def _parse_facets(text: str) -> dict[str, str]:
     """Parse + validate the model's JSON, coercing to the known facet keys."""
+    # Strip markdown code blocks if present
+    text = text.strip()
+    if text.startswith("```json"):
+        text = text[7:]  # Remove ```json
+    elif text.startswith("```"):
+        text = text[3:]  # Remove ```
+    if text.endswith("```"):
+        text = text[:-3]  # Remove trailing ```
+    text = text.strip()
+
     data = json.loads(text)
     return {k: str(data.get(k, "")).strip() for k in FACET_KEYS}
 
