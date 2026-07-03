@@ -62,16 +62,12 @@ FACETS: tuple[Facet, ...] = (
             "place name on its own."
         ),
     ),
-    Facet(
-        key="twist",
-        title="Structural / moral turn",
-        description="The pivotal structural or moral turn, spoilers included.",
-        guidance=(
-            "Name the key turn using the spoiler-complete summary (e.g. 'antagonist "
-            "revealed as the moral center', 'narrator revealed unreliable'). Return "
-            "an empty string if there is no meaningful turn."
-        ),
-    ),
+    # NOTE: a `twist` facet was removed — it was absent for ~20% of books
+    # (many literary/character studies have no structural turn), and its
+    # empty-string embeddings split the galaxy layout into a spurious
+    # "has-a-twist vs not" pair of blobs. Coverage, not concept, was the
+    # problem; a future version could reinstate it as a lens excluded from the
+    # layout, or with a coverage floor.
 )
 
 FACET_KEYS: tuple[str, ...] = tuple(f.key for f in FACETS)

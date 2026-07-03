@@ -42,7 +42,7 @@ vectors deliver it. (Filtering falls out for free once we have them.)
 | D4 | **Catalog scope** | ~2–3k curated books first | Genre-balanced subset; expand toward full 16.5k after the space is validated |
 | D5 | **Embedding model** | Local open model | `bge-large` / `nomic-embed` via sentence-transformers; $0, no API dependency |
 | **D6** | **Facet realization** | **Option B — true per-facet vectors** | LLM *extracts* facet fields from each summary; embed each field separately |
-| D7 | **Facet taxonomy** | ~5 facets (see below) | The extraction schema is the heart of the pipeline |
+| D7 | **Facet taxonomy** | 4 facets (twist dropped in v1 — see below) | The extraction schema is the heart of the pipeline |
 | D8 | **Clustering** | HDBSCAN offline + per-cluster LLM labels | Labels are per-cluster, not per-book — cheap |
 | D9 | **Serving model** | Hybrid | Static precomputed galaxy JSON + a serverless `sqlite-vec` function for live per-facet queries |
 | D10 | **Nearest-neighbor** | Exact brute-force cosine | A few thousand books — no approximate index needed |
@@ -78,9 +78,10 @@ To get disentangled similarity we decompose per book:
    - `arc` — transformation / character change (e.g. "coming-of-age realization")
    - `setting_as_device` — how setting functions narratively (e.g. "displacement
      abroad forces self-confrontation")
-   - `twist` — structural/moral turn (e.g. "antagonist revealed as the moral
-     center")
-2. **Embed each field separately** (local model) → ~5 vectors per book.
+   - ~~`twist` — structural/moral turn~~ *(removed in v1 — see execution status:
+     ~20% of books had no twist, and the empty-string embeddings split the
+     galaxy into a spurious "has-a-twist vs not" pair of blobs)*
+2. **Embed each field separately** (local model) → 4 vectors per book.
 3. **Query per facet:** high cosine in the relationship space + low in the
    setting space = "similar romance, different world." Compose facets with
    weights for the intersection queries too.
@@ -150,7 +151,7 @@ CMU Book Summary Dataset (16.5k books, plot summaries + author/title/genre)
    LLM facet extraction (Haiku + Batch)  ──►  per-book facet JSON  (cheap)
         │
         ▼
-   local embedding model (sentence-transformers)  ──►  ~5 facet vectors/book  ($0)
+   local embedding model (sentence-transformers)  ──►  4 facet vectors/book  ($0)
         │
         ├─►  HDBSCAN clustering ──► per-cluster LLM labels
         ├─►  UMAP (offline) ──► coords3d.json
@@ -228,6 +229,13 @@ the app has been verified against the artifacts it produced.
 - **Catalog:** 2,000 genre-balanced books ingested (rarest-genre round-robin);
   1,944 survived extraction (56 non-narrative works dropped for having <3
   facets).
+- **Facet set (deviation from D7):** dropped from 5 to **4** — the `twist`
+  facet was absent for 399/1,944 books (~20%), and in the concatenated galaxy
+  layout their shared empty-string embeddings formed a spurious second blob
+  ("has-a-twist vs not," 99.5% pure), disconnected from the main mass. The
+  other four facets are missing for ≤3 books each. Removed twist from the
+  taxonomy, embeddings, index, and UI rather than paper over it; the layout is
+  now one organic mass.
 - **Extraction:** Haiku + Batch API with structured outputs (guaranteed-valid
   JSON), resumable via `data/batch_id.txt`; 1,997/2,000 succeeded in-batch, 3
   retried directly. Cost ~$1.

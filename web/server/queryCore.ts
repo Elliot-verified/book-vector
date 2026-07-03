@@ -16,7 +16,6 @@ export const FACETS = [
   "relationship",
   "arc",
   "setting_as_device",
-  "twist",
 ] as const;
 export type Facet = (typeof FACETS)[number];
 
