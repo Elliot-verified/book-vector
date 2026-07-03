@@ -1,21 +1,24 @@
 import { useEffect, useState } from "react";
 import { neighbors } from "../lib/api";
 import type { Book, FacetWeights, Neighbor } from "../types";
+import { FacetLens } from "./FacetLens";
 
 interface Props {
   book: Book;
   booksById: Map<string, Book>;
   weights: FacetWeights;
+  onWeights: (w: FacetWeights) => void;
   onSelect: (bookId: string) => void;
 }
 
 /**
  * Constellation: the K nearest neighbors of a book under the current facet
  * weights, with the *why* (which facets match, and how strongly) surfaced.
- * This is where disentangled similarity shows — change the weights, the
- * neighbors change.
+ * This is where disentangled similarity shows — the facet lens lives here
+ * because that is where re-weighting changes anything: slide the facets, the
+ * neighbors re-rank.
  */
-export function Constellation({ book, booksById, weights, onSelect }: Props) {
+export function Constellation({ book, booksById, weights, onWeights, onSelect }: Props) {
   const [items, setItems] = useState<Neighbor[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,7 +31,7 @@ export function Constellation({ book, booksById, weights, onSelect }: Props) {
   }, [book.id, weights]);
 
   return (
-    <div style={{ padding: 24, paddingTop: 72, overflow: "auto", height: "100%", boxSizing: "border-box" }}>
+    <div style={{ padding: 24, paddingTop: 20, overflow: "auto", height: "100%", boxSizing: "border-box" }}>
       <h2 style={{ margin: "0 0 4px" }}>{book.title}</h2>
       <div style={{ opacity: 0.7, marginBottom: 8 }}>{book.author}</div>
       <ul style={{ listStyle: "none", padding: 0, margin: "0 0 20px", fontSize: 13, opacity: 0.85 }}>
@@ -40,6 +43,21 @@ export function Constellation({ book, booksById, weights, onSelect }: Props) {
             </li>
           ))}
       </ul>
+
+      <div
+        style={{
+          margin: "4px 0 14px",
+          padding: "10px 12px",
+          border: "1px solid #232941",
+          borderRadius: 8,
+          background: "rgba(20,24,40,0.5)",
+        }}
+      >
+        <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 6 }}>
+          weight the facets to re-rank neighbors:
+        </div>
+        <FacetLens weights={weights} onChange={onWeights} />
+      </div>
 
       <h3 style={{ marginBottom: 8 }}>nearest by current lens</h3>
       {error && <p style={{ color: "#ff8a8a" }}>{error} (is the query fn running?)</p>}

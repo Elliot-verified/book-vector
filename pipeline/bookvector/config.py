@@ -17,11 +17,17 @@ BOOKS_JSONL = DATA_DIR / "books.jsonl"        # ingest.py
 FACETS_JSONL = DATA_DIR / "facets.jsonl"      # extract.py
 VECTORS_NPZ = DATA_DIR / "vectors.npz"        # embed.py
 CLUSTERS_JSON = DATA_DIR / "clusters.json"    # cluster.py
-COORDS_JSON = DATA_DIR / "coords.json"        # reduce.py  (also copied to web/public/data)
-INDEX_SQLITE = DATA_DIR / "index.sqlite"      # index.py
+COORDS_JSON = DATA_DIR / "coords.json"        # reduce.py
 
-WEB_DATA_DIR = PIPELINE_ROOT.parent / "web" / "public" / "data"
-GALAXY_JSON = WEB_DATA_DIR / "galaxy.json"    # export.py — coords + metadata for the app
+# --- web artifacts (export.py) -------------------------------------------
+# Client-served: the galaxy (coords + metadata + cluster labels).
+WEB_PUBLIC_DATA = PIPELINE_ROOT.parent / "web" / "public" / "data"
+GALAXY_JSON = WEB_PUBLIC_DATA / "galaxy.json"
+# Function-side (not shipped to the browser): int8-quantized per-facet vectors
+# the query function brute-forces over. Pure data — no native modules (D10).
+WEB_FN_DATA = PIPELINE_ROOT.parent / "web" / "data"
+VECTORS_BIN = WEB_FN_DATA / "vectors.bin"
+VECTORS_META = WEB_FN_DATA / "vectors.meta.json"
 
 # --- source data ---------------------------------------------------------
 # CMU Book Summary Dataset (CC BY-SA). See PLAN.md "Dataset status & access".

@@ -76,56 +76,64 @@ def extract_direct(books: list[dict]) -> dict[str, dict]:
 
 
 def extract(limit: int | None = None, poll_seconds: int = 30) -> int:
-    """Batch-extract facets for every book in books.jsonl. Returns count written.
+    """Incrementally batch-extract facets for every book in books.jsonl.
 
-    Submits one Message Batch (or resumes the one recorded in batch_id.txt),
-    polls until it ends, validates every result, and retries errored requests
-    with direct calls.
+    Books already present in facets.jsonl are kept as-is; only the remainder are
+    sent to a new Message Batch (or the one resumed from batch_id.txt). This makes
+    growing the catalog cheap — re-running after adding books only pays for the
+    new ones. Returns the total facet-record count written.
     """
     from anthropic import Anthropic
 
     books = _load_books(limit)
-    by_id = {b["id"]: b for b in books}
-    client = Anthropic()
+    done = _load_existing_facets()
+    missing = [b for b in books if b["id"] not in done]
+    by_id = {b["id"]: b for b in missing}
+    print(f"[extract] {len(books)} books; {len(done)} already extracted; "
+          f"{len(missing)} to extract", flush=True)
 
-    batch_id = _pending_batch_id()
-    if batch_id:
-        print(f"[extract] resuming batch {batch_id}")
-    else:
-        batch = client.messages.batches.create(requests=[
-            {"custom_id": f"book-{b['id']}", "params": _request_params(b)}
-            for b in books
-        ])
-        batch_id = batch.id
-        BATCH_ID_FILE.write_text(batch_id)
-        print(f"[extract] submitted batch {batch_id} ({len(books)} requests)")
-
-    while True:
-        batch = client.messages.batches.retrieve(batch_id)
-        if batch.processing_status == "ended":
-            break
-        c = batch.request_counts
-        print(f"[extract] {batch.processing_status}: {c.succeeded} ok / "
-              f"{c.errored} err / {c.processing} processing", flush=True)
-        time.sleep(poll_seconds)
-
-    facets: dict[str, dict] = {}
-    failed: list[str] = []
-    for result in client.messages.batches.results(batch_id):
-        book_id = result.custom_id.removeprefix("book-")
-        if result.result.type == "succeeded":
-            try:
-                facets[book_id] = _parse_facets(_first_text(result.result.message))
-            except ValueError:
-                failed.append(book_id)
+    new_facets: dict[str, dict] = {}
+    if missing:
+        client = Anthropic()
+        batch_id = _pending_batch_id()
+        if batch_id:
+            print(f"[extract] resuming batch {batch_id}")
         else:
-            failed.append(book_id)
+            batch = client.messages.batches.create(requests=[
+                {"custom_id": f"book-{b['id']}", "params": _request_params(b)}
+                for b in missing
+            ])
+            batch_id = batch.id
+            BATCH_ID_FILE.write_text(batch_id)
+            print(f"[extract] submitted batch {batch_id} ({len(missing)} requests)")
 
-    if failed:
-        retryable = [by_id[i] for i in failed if i in by_id]
-        print(f"[extract] retrying {len(retryable)} failed requests directly")
-        facets.update(extract_direct(retryable))
+        while True:
+            batch = client.messages.batches.retrieve(batch_id)
+            if batch.processing_status == "ended":
+                break
+            c = batch.request_counts
+            print(f"[extract] {batch.processing_status}: {c.succeeded} ok / "
+                  f"{c.errored} err / {c.processing} processing", flush=True)
+            time.sleep(poll_seconds)
 
+        failed: list[str] = []
+        for result in client.messages.batches.results(batch_id):
+            book_id = result.custom_id.removeprefix("book-")
+            if result.result.type == "succeeded":
+                try:
+                    new_facets[book_id] = _parse_facets(_first_text(result.result.message))
+                except ValueError:
+                    failed.append(book_id)
+            else:
+                failed.append(book_id)
+
+        if failed:
+            retryable = [by_id[i] for i in failed if i in by_id]
+            print(f"[extract] retrying {len(retryable)} failed requests directly")
+            new_facets.update(extract_direct(retryable))
+        BATCH_ID_FILE.unlink(missing_ok=True)
+
+    facets = {**done, **new_facets}
     written = skipped = 0
     with config.FACETS_JSONL.open("w") as out:
         for book in books:  # preserve catalog order
@@ -139,10 +147,21 @@ def extract(limit: int | None = None, poll_seconds: int = 30) -> int:
                 continue
             out.write(json.dumps({"id": book["id"], "facets": f}) + "\n")
             written += 1
-    BATCH_ID_FILE.unlink(missing_ok=True)
     print(f"[extract] wrote {written}/{len(books)} facet records "
           f"({skipped} non-narrative skipped) -> {config.FACETS_JSONL}")
     return written
+
+
+def _load_existing_facets() -> dict[str, dict]:
+    if not config.FACETS_JSONL.exists():
+        return {}
+    out = {}
+    with config.FACETS_JSONL.open() as fh:
+        for line in fh:
+            rec = json.loads(line)
+            f = rec["facets"]
+            out[rec["id"]] = {k: str(f.get(k, "")).strip() for k in FACET_KEYS}
+    return out
 
 
 def _load_books(limit: int | None) -> list[dict]:

@@ -24,7 +24,16 @@ async function post(body: unknown): Promise<any> {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-  const data = await res.json();
+  // Read as text first: on an infra-level failure the body may be a plain-text
+  // error page (e.g. Vercel's "A server error has occurred"), not JSON —
+  // parsing that directly is what produced the "Unexpected token 'A'" error.
+  const text = await res.text();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`query failed (${res.status}): ${text.slice(0, 200)}`);
+  }
   if (!res.ok) throw new Error(data.error ?? `query failed: ${res.status}`);
   return data;
 }

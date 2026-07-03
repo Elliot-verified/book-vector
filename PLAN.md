@@ -259,9 +259,27 @@ the app has been verified against the artifacts it produced.
   0.65. Margin is thin in absolute terms (bge similarity range is compressed) —
   ranking quality is the metric that matters and is good; tightening this is
   milestone-8 work.
-- **Serving:** galaxy.json (static) + sqlite-vec weighted per-facet queries via
-  a shared `queryCore` running identically under vite dev middleware and the
-  Vercel function. Deployment to Vercel (D12) has not been run yet.
+- **Serving (revised):** the sqlite-vec index was replaced by **pure-JS
+  brute-force over int8-quantized vectors** (`web/data/vectors.bin` +
+  `vectors.meta.json`). `better-sqlite3`/`sqlite-vec` are native modules that
+  did not bundle reliably on Vercel — the function crashed with "A server error
+  has occurred". Plain-data vectors + a JS cosine loop remove that entire
+  failure class, are fully testable locally, and still run every query as exact
+  brute force (D10). Shared `queryCore` runs identically under the vite dev
+  middleware and the Vercel function.
+
+### Post-v1 expansion (this session)
+
+- **Full catalog:** extraction extended from the 2–3k MVP sample to **all
+  13,265 eligible books** (summary ≥600 chars) via the incremental Batch path
+  (only new books are paid for); 12,914 survived the non-narrative filter.
+- **App features:** a scrollable "hyperniche genres" sidebar (emergent cluster
+  themes) that flies the 3D camera to a clicked cluster while keeping the rest
+  of the structure visible; a **book-in-the-middle** finder (the book maximizing
+  combined per-facet cosine to two chosen books = nearest the cosine-midpoint);
+  facet-lens sliders relocated into the constellation where re-weighting
+  actually re-ranks; unlit point material so no book renders dark against the
+  background.
 
 Remaining (milestone 8 / post-v1): granularity-dial iteration against the eval
 set, richer constellation rendering (currently a ranked list with per-facet

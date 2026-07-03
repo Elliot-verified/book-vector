@@ -4,7 +4,7 @@ Offline pipeline that turns the CMU Book Summary Dataset into the artifacts the
 web app consumes. Stages mirror the milestones in [`../PLAN.md`](../PLAN.md).
 
 ```
-acquire → ingest → extract (facets) → embed → cluster → reduce → index → export
+acquire → ingest → extract (facets) → embed → cluster → reduce → export
 ```
 
 | Module | Stage | Output |
@@ -15,8 +15,7 @@ acquire → ingest → extract (facets) → embed → cluster → reduce → ind
 | `embed.py` | Local per-facet embeddings + empty-facet masks | `data/vectors.npz` |
 | `cluster.py` | UMAP→HDBSCAN + per-cluster LLM theme labels | `data/clusters.json` |
 | `reduce.py` | UMAP → 3D (and 2D) galaxy coords | `data/coords.json` |
-| `index.py` | Build `sqlite-vec` index (mask-aware) | `data/index.sqlite` |
-| `export.py` | Join everything for the web app | `../web/public/data/galaxy.json`, `../web/data/index.sqlite` |
+| `export.py` | Web artifacts | `../web/public/data/galaxy.json` (client) + `../web/data/vectors.bin` + `vectors.meta.json` (int8 vectors for the query fn) |
 | `evaluate.py` | Theme-pair eval + genre-collapse probe (D14) | report |
 
 Run the whole thing:
@@ -48,7 +47,7 @@ Notes:
 
 - **Empty facets are masked**: a book with no `twist` never appears in the
   twist facet space (vectors.npz `<facet>__mask`, skipped rows in
-  `index.sqlite`, excluded from that facet's clustering).
+  the int8 vector file, excluded from that facet's clustering).
 
 The **facet taxonomy** lives in `bookvector/facets.py` — it is the single source
 of truth for extraction and embedding, and the first thing to validate.

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Galaxy } from "./components/Galaxy";
 import { Constellation } from "./components/Constellation";
-import { FacetLens } from "./components/FacetLens";
 import { Sidebar } from "./components/Sidebar";
 import type { Book, Cluster, FacetWeights, Focus, GalaxyData } from "./types";
 
@@ -111,7 +110,11 @@ export function App() {
         {focus && mode.view === "galaxy" && (
           <button onClick={() => setFocus(null)}>reset view</button>
         )}
-        <FacetLens weights={weights} onChange={setWeights} />
+        <span style={{ opacity: 0.5, fontSize: 12 }}>
+          {mode.view === "galaxy"
+            ? "click a point to dive into its constellation · drag to orbit"
+            : "adjust the facet weights below to re-rank neighbors"}
+        </span>
       </div>
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
@@ -137,6 +140,7 @@ export function App() {
               book={booksById.get(mode.bookId)!}
               booksById={booksById}
               weights={weights}
+              onWeights={setWeights}
               onSelect={(bookId) => setMode({ view: "constellation", bookId })}
             />
           )}
