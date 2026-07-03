@@ -18,10 +18,9 @@ function devApi(): Plugin {
         req.on("data", (chunk) => (body += chunk));
         req.on("end", async () => {
           try {
-            const { neighbors } = await import("./server/queryCore");
-            const { bookId, weights = {}, k = 12 } = JSON.parse(body);
+            const { handleQuery } = await import("./server/queryCore");
             res.setHeader("content-type", "application/json");
-            res.end(JSON.stringify({ neighbors: neighbors(bookId, weights, k) }));
+            res.end(JSON.stringify(handleQuery(JSON.parse(body))));
           } catch (e) {
             res.statusCode = 400;
             res.setHeader("content-type", "application/json");
