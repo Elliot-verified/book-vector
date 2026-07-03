@@ -113,7 +113,7 @@ export function App() {
         <span style={{ opacity: 0.5, fontSize: 12 }}>
           {mode.view === "galaxy"
             ? "click a point to dive into its constellation · drag to orbit"
-            : "adjust the facet weights below to re-rank neighbors"}
+            : "adjust the facet lens in the sidebar to re-rank neighbors"}
         </span>
       </div>
 
@@ -122,6 +122,8 @@ export function App() {
           clusters={clusters}
           books={data.books}
           booksById={booksById}
+          weights={weights}
+          onWeights={setWeights}
           activeClusterId={focus?.clusterId}
           onFocusCluster={focusCluster}
           onFocusBook={focusBook}
@@ -140,7 +142,6 @@ export function App() {
               book={booksById.get(mode.bookId)!}
               booksById={booksById}
               weights={weights}
-              onWeights={setWeights}
               onSelect={(bookId) => setMode({ view: "constellation", bookId })}
             />
           )}

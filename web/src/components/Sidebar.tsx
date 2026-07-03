@@ -1,59 +1,71 @@
 import { useState } from "react";
-import type { Book, Cluster, Midpoint } from "../types";
+import type { Book, Cluster, FacetWeights, Midpoint } from "../types";
 import { midpoint as midpointQuery } from "../lib/api";
 import { BookPicker } from "./BookPicker";
+import { FacetLens } from "./FacetLens";
 
 interface Props {
   clusters: Cluster[];
   books: Book[];
   booksById: Map<string, Book>;
+  weights: FacetWeights;
+  onWeights: (w: FacetWeights) => void;
   activeClusterId?: number;
   onFocusCluster: (c: Cluster) => void;
   onFocusBook: (b: Book) => void;
 }
 
 /**
- * Left sidebar: the "hyperniche genres" (emergent cluster themes) as a
- * scrollable, clickable list that flies the galaxy camera to each cluster, plus
- * a midpoint finder that locates the book sitting between two chosen books.
+ * Left sidebar. The facet lens and the book-in-the-middle finder are pinned to
+ * the top; only the "hyperniche genres" (emergent cluster themes) list scrolls
+ * beneath them. Clicking a genre flies the galaxy camera to that cluster.
  */
 export function Sidebar({
   clusters,
   books,
   booksById,
+  weights,
+  onWeights,
   activeClusterId,
   onFocusCluster,
   onFocusBook,
 }: Props) {
   return (
     <aside style={aside}>
-      <Midpoint books={books} booksById={booksById} onFocusBook={onFocusBook} />
-
-      <div style={{ ...sectionTitle, marginTop: 18 }}>
-        hyperniche genres <span style={{ opacity: 0.5 }}>({clusters.length})</span>
+      <div style={pinned}>
+        <div style={sectionTitle}>weight the facets to re-rank neighbors</div>
+        <FacetLens weights={weights} onChange={onWeights} />
+        <div style={{ height: 16 }} />
+        <Midpoint books={books} booksById={booksById} onFocusBook={onFocusBook} />
       </div>
-      <ul style={list}>
-        {clusters.map((c) => (
-          <li
-            key={c.id}
-            onClick={() => onFocusCluster(c)}
-            style={{
-              ...row,
-              background: c.id === activeClusterId ? "#182138" : "transparent",
-              borderColor: c.id === activeClusterId ? "#2b3a6b" : "#171b28",
-            }}
-          >
-            <span
+
+      <div style={scroller}>
+        <div style={sectionTitle}>
+          hyperniche genres <span style={{ opacity: 0.5 }}>({clusters.length})</span>
+        </div>
+        <ul style={list}>
+          {clusters.map((c) => (
+            <li
+              key={c.id}
+              onClick={() => onFocusCluster(c)}
               style={{
-                ...swatch,
-                background: `hsl(${((c.id * 0.61803398875) % 1) * 360}, 65%, 62%)`,
+                ...row,
+                background: c.id === activeClusterId ? "#182138" : "transparent",
+                borderColor: c.id === activeClusterId ? "#2b3a6b" : "#171b28",
               }}
-            />
-            <span style={{ flex: 1 }}>{c.label || `cluster ${c.id}`}</span>
-            <span style={{ opacity: 0.45, fontSize: 11 }}>{c.count}</span>
-          </li>
-        ))}
-      </ul>
+            >
+              <span
+                style={{
+                  ...swatch,
+                  background: `hsl(${((c.id * 0.61803398875) % 1) * 360}, 65%, 62%)`,
+                }}
+              />
+              <span style={{ flex: 1 }}>{c.label || `cluster ${c.id}`}</span>
+              <span style={{ opacity: 0.45, fontSize: 11 }}>{c.count}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </aside>
   );
 }
@@ -103,7 +115,7 @@ function Midpoint({
         <p style={{ fontSize: 12, opacity: 0.6 }}>no book between them</p>
       )}
       {results && results.length > 0 && (
-        <ul style={{ ...list, marginTop: 8 }}>
+        <ul style={{ ...list, marginTop: 8, maxHeight: 260, overflowY: "auto" }}>
           {results.map((r, i) => {
             const book = booksById.get(r.id);
             return (
@@ -153,11 +165,27 @@ const aside: React.CSSProperties = {
   width: 300,
   flexShrink: 0,
   height: "100%",
-  overflowY: "auto",
+  display: "flex",
+  flexDirection: "column",
+  overflow: "hidden",
   boxSizing: "border-box",
-  padding: "12px 14px",
   borderRight: "1px solid #171b28",
   background: "#080a12",
+};
+
+// pinned top: facet lens + midpoint finder — stays put while the list scrolls
+const pinned: React.CSSProperties = {
+  flexShrink: 0,
+  padding: "12px 14px",
+  borderBottom: "1px solid #171b28",
+};
+
+// the only scrolling region: the hyperniche-genre list
+const scroller: React.CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  overflowY: "auto",
+  padding: "12px 14px",
 };
 
 const sectionTitle: React.CSSProperties = {
