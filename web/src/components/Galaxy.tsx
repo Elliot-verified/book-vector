@@ -35,7 +35,7 @@ export function Galaxy({ books, clusterNames, threeD, focus, onSelect }: Props) 
 
   return (
     <>
-      <Canvas camera={{ position: [0, 0, 45], fov: 60 }}>
+      <Canvas camera={{ position: [0, 0, 30], fov: 60 }}>
         <Points
           books={books}
           threeD={threeD}
