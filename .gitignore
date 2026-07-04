@@ -33,6 +33,8 @@ web/public/data/*
 !pipeline/data/eval_pairs.jsonl
 
 # Deploy artifacts — committed so Vercel git builds have them (see PLAN.md).
-# galaxy.json = client galaxy; web/data/vectors.* = the query fn's int8 vectors
-# (web/data/ is not under the ignored web/public/data/, so it tracks normally).
+# The app is fully static: galaxy (metadata + per-lens layouts), precomputed
+# per-lens neighbors, and reduced vectors for the client-side midpoint finder.
 !web/public/data/galaxy.json
+!web/public/data/neighbors.bin
+!web/public/data/midvec.bin

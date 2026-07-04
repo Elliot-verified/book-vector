@@ -1,23 +1,16 @@
-"""Stage 7 — export the web artifacts (D9/D10).
+"""Stage 7 — export the static web assets (D9/D10). No serverless function.
 
-Two outputs, both regenerated from the pipeline's data/:
+Everything the app needs is precomputed and served as static files, so there is
+no query endpoint to fail or hang:
 
-1. `web/public/data/galaxy.json` (client-served) — coords + book metadata +
-   cluster theme labels; the galaxy renders from this directly.
-
-    {
-      "facets": [facet keys],
-      "clusters": {cluster_id: name},
-      "books": [{"id", "title", "author", "genres", "coords": {"xyz", "xy"},
-                 "cluster", "facets": {...}}]
-    }
-
-2. `web/data/vectors.bin` + `vectors.meta.json` (function-side) — int8-quantized
-   per-facet vectors the query function brute-forces over (exact cosine, D10).
-   Plain data, so the serverless function needs no native modules — no
-   sqlite-vec / better-sqlite3 to fail to bundle. Layout is book-major:
-   for each id in meta.ids, for each facet in meta.facets, `dim` int8 values
-   (v*127, clipped); an absent facet is all-zero.
+1. `galaxy.json` — metadata + per-lens layouts + cluster labels. Books are in
+   the canonical order (vectors.npz id order); `layouts[lens]` is an array
+   aligned to that order (`null` where a book is absent from that lens).
+2. `neighbors.bin` — per-lens top-K neighbor indices + sims (constellation
+   lookup). All uint16 index blocks first (2-byte aligned), then uint8 sim
+   blocks: [lens0_idx … lensL_idx, lens0_sim … lensL_sim].
+3. `midvec.bin` — int8 PCA-reduced concat vectors for the client-side
+   book-in-the-middle finder.
 """
 
 from __future__ import annotations
@@ -28,71 +21,96 @@ import numpy as np
 
 from . import config
 from .facets import FACET_KEYS
+from .reduce import LENSES
+from .vectors import load_space
 
 
 def export() -> None:
-    _export_galaxy()
-    _export_vectors()
+    ids = _canonical_ids()
+    _export_galaxy(ids)
+    _export_neighbors(ids)
+    _export_midvec(ids)
 
 
-def _export_galaxy() -> None:
-    coords = json.loads(config.COORDS_JSON.read_text())
+def _canonical_ids() -> list[str]:
+    return [str(i) for i in np.load(config.VECTORS_NPZ, allow_pickle=True)["ids"]]
+
+
+def _export_galaxy(ids: list[str]) -> None:
+    layouts_raw = json.loads(config.LAYOUTS_JSON.read_text())
     clusters = json.loads(config.CLUSTERS_JSON.read_text())
-    facets_by_id = {}
-    with config.FACETS_JSONL.open() as fh:
-        for line in fh:
-            rec = json.loads(line)
-            facets_by_id[rec["id"]] = rec["facets"]
+    meta = _book_meta()
 
-    books = []
-    with config.BOOKS_JSONL.open() as fh:
-        for line in fh:
-            b = json.loads(line)
-            if b["id"] not in coords:
-                continue  # dropped as non-narrative, or unmapped
-            books.append({
-                "id": b["id"],
-                "title": b["title"],
-                "author": b["author"],
-                "genres": b["genres"],
-                "coords": coords[b["id"]],
-                "cluster": clusters["labels"].get(b["id"], -1),
-                "facets": facets_by_id.get(b["id"], {}),
-            })
+    books = [{
+        "id": i,
+        **meta.get(i, {"title": i, "author": "", "genres": [], "facets": {}}),
+        "cluster": clusters["labels"].get(i, -1),
+    } for i in ids]
+
+    # per-lens coords as arrays aligned to `ids` (null where a book is absent)
+    layouts = {}
+    for lens in LENSES:
+        c = layouts_raw["coords"][lens]
+        layouts[lens] = [
+            ([*c[i]["xyz"], *c[i]["xy"]] if i in c else None) for i in ids
+        ]
 
     config.WEB_PUBLIC_DATA.mkdir(parents=True, exist_ok=True)
     config.GALAXY_JSON.write_text(json.dumps({
         "facets": list(FACET_KEYS),
+        "lenses": list(LENSES),
+        "k": config.KNN_PRECOMPUTE,
+        "midDim": config.MID_PCA_DIMS,
         "clusters": clusters["names"],
         "books": books,
+        "layouts": layouts,
     }))
-    print(f"[export] wrote {len(books)} books -> {config.GALAXY_JSON}")
+    print(f"[export] wrote {len(books)} books, {len(LENSES)} layouts -> {config.GALAXY_JSON}")
 
 
-def _export_vectors() -> None:
-    data = np.load(config.VECTORS_NPZ, allow_pickle=True)
-    ids = [str(i) for i in data["ids"]]
-    dim = int(data[FACET_KEYS[0]].shape[1])
+def _book_meta() -> dict[str, dict]:
+    facets_by_id = {}
+    with config.FACETS_JSONL.open() as fh:
+        for line in fh:
+            r = json.loads(line)
+            facets_by_id[r["id"]] = r["facets"]
+    meta = {}
+    with config.BOOKS_JSONL.open() as fh:
+        for line in fh:
+            b = json.loads(line)
+            if b["id"] in facets_by_id:
+                meta[b["id"]] = {"title": b["title"], "author": b["author"],
+                                 "genres": b["genres"], "facets": facets_by_id[b["id"]]}
+    return meta
 
-    # book-major int8 block: [book][facet][dim]
-    n = len(ids)
-    block = np.zeros((n, len(FACET_KEYS), dim), dtype=np.int8)
-    for fi, k in enumerate(FACET_KEYS):
-        q = np.clip(np.round(data[k] * 127.0), -127, 127).astype(np.int8)
-        q[~data[f"{k}__mask"]] = 0  # absent facet → all-zero
-        block[:, fi, :] = q
 
-    config.WEB_FN_DATA.mkdir(parents=True, exist_ok=True)
-    config.VECTORS_BIN.write_bytes(block.tobytes())
-    config.VECTORS_META.write_text(json.dumps({
-        "ids": ids,
-        "facets": list(FACET_KEYS),
-        "dim": dim,
-        "scale": 127,
-    }))
-    mb = config.VECTORS_BIN.stat().st_size / 1e6
-    print(f"[export] wrote {n}×{len(FACET_KEYS)}×{dim} int8 vectors "
-          f"({mb:.1f} MB) -> {config.VECTORS_BIN}")
+def _export_neighbors(ids: list[str]) -> None:
+    nz = np.load(config.NEIGHBORS_NPZ, allow_pickle=True)
+    n, k = len(ids), config.KNN_PRECOMPUTE
+    idx_blocks, sim_blocks = [], []
+    for lens in LENSES:
+        idx = nz[f"{lens}_idx"].astype(np.int64)
+        idx[idx < 0] = 65535  # sentinel for "no neighbor"
+        idx_blocks.append(idx.astype("<u2").tobytes())
+        sim = np.clip(np.round(nz[f"{lens}_sim"] * 255.0), 0, 255).astype(np.uint8)
+        sim_blocks.append(sim.tobytes())
+    config.NEIGHBORS_BIN.write_bytes(b"".join(idx_blocks) + b"".join(sim_blocks))
+    mb = config.NEIGHBORS_BIN.stat().st_size / 1e6
+    print(f"[export] wrote neighbors {len(LENSES)}×{n}×{k} ({mb:.1f} MB) -> {config.NEIGHBORS_BIN}")
+
+
+def _export_midvec(ids: list[str]) -> None:
+    from sklearn.decomposition import TruncatedSVD
+
+    _, concat, _ = load_space("concat")  # (n, 3072) unit-norm
+    dims = min(config.MID_PCA_DIMS, concat.shape[1])
+    reduced = TruncatedSVD(n_components=dims, random_state=42).fit_transform(concat)
+    norms = np.linalg.norm(reduced, axis=1, keepdims=True)
+    reduced = reduced / np.where(norms == 0, 1.0, norms)
+    q = np.clip(np.round(reduced * 127.0), -127, 127).astype(np.int8)
+    config.MIDVEC_BIN.write_bytes(q.tobytes())
+    mb = config.MIDVEC_BIN.stat().st_size / 1e6
+    print(f"[export] wrote midvec {len(ids)}×{dims} int8 ({mb:.1f} MB) -> {config.MIDVEC_BIN}")
 
 
 if __name__ == "__main__":

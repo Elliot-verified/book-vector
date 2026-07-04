@@ -2,80 +2,85 @@ import { useEffect, useMemo, useState } from "react";
 import { Galaxy } from "./components/Galaxy";
 import { Constellation } from "./components/Constellation";
 import { Sidebar } from "./components/Sidebar";
-import type { Book, Cluster, FacetWeights, Focus, GalaxyData } from "./types";
+import { loadStore, type Store } from "./lib/data";
+import type { Book, Cluster, Focus, Lens } from "./types";
 
 type Mode = { view: "galaxy" } | { view: "constellation"; bookId: string };
 
 export function App() {
-  const [data, setData] = useState<GalaxyData | null>(null);
+  const [store, setStore] = useState<Store | null>(null);
   const [mode, setMode] = useState<Mode>({ view: "galaxy" });
   const [threeD, setThreeD] = useState(true);
-  const [weights, setWeights] = useState<FacetWeights>({ arc: 1 });
+  const [lens, setLens] = useState<Lens>("all");
   const [focus, setFocus] = useState<Focus | null>(null);
 
   useEffect(() => {
-    fetch("/data/galaxy.json")
-      .then((r) => (r.ok ? r.json() : null))
-      .then(setData)
-      .catch(() => setData(null));
+    loadStore().then(setStore).catch(() => setStore(null));
   }, []);
 
-  const booksById = useMemo(() => {
-    const m = new Map<string, Book>();
-    data?.books.forEach((b) => m.set(b.id, b));
-    return m;
-  }, [data]);
+  const books = store?.data.books ?? [];
+  const booksById = useMemo(() => new Map(books.map((b) => [b.id, b])), [books]);
 
-  // "hyperniche genres": one entry per emergent cluster, with its centroid and
-  // extent in both layouts, sorted largest-first. Noise (-1) is excluded.
-  const clusters = useMemo<Cluster[]>(() => {
-    if (!data) return [];
-    const groups = new Map<number, Book[]>();
-    for (const b of data.books) {
-      if (b.cluster < 0) continue;
-      (groups.get(b.cluster) ?? groups.set(b.cluster, []).get(b.cluster)!).push(b);
+  // cluster list + member indices (for centroids), lens-independent
+  const { clusters, members } = useMemo(() => {
+    const members = new Map<number, number[]>();
+    books.forEach((b, i) => {
+      if (b.cluster < 0) return;
+      (members.get(b.cluster) ?? members.set(b.cluster, []).get(b.cluster)!).push(i);
+    });
+    const clusters: Cluster[] = [...members.entries()]
+      .map(([id, idxs]) => ({ id, label: store?.data.clusters[String(id)] ?? "", count: idxs.length }))
+      .sort((a, b) => b.count - a.count);
+    return { clusters, members };
+  }, [books, store]);
+
+  function centroid(idxs: number[]): Focus | null {
+    if (!store) return null;
+    const layout = store.data.layouts[lens];
+    const pts = idxs.map((i) => layout[i]).filter(Boolean) as number[][];
+    if (!pts.length) return null;
+    const c3: [number, number, number] = [0, 0, 0];
+    const c2: [number, number] = [0, 0];
+    for (const e of pts) {
+      c3[0] += e[0]; c3[1] += e[1]; c3[2] += e[2];
+      c2[0] += e[3]; c2[1] += e[4];
     }
-    const out: Cluster[] = [];
-    for (const [id, members] of groups) {
-      const c3: [number, number, number] = [0, 0, 0];
-      const c2: [number, number] = [0, 0];
-      for (const b of members) {
-        c3[0] += b.coords.xyz[0]; c3[1] += b.coords.xyz[1]; c3[2] += b.coords.xyz[2];
-        c2[0] += b.coords.xy[0]; c2[1] += b.coords.xy[1];
-      }
-      const n = members.length;
-      const center3d: [number, number, number] = [c3[0] / n, c3[1] / n, c3[2] / n];
-      const center2d: [number, number] = [c2[0] / n, c2[1] / n];
-      let radius = 0;
-      for (const b of members) {
-        const dx = b.coords.xyz[0] - center3d[0];
-        const dy = b.coords.xyz[1] - center3d[1];
-        const dz = b.coords.xyz[2] - center3d[2];
-        radius = Math.max(radius, Math.hypot(dx, dy, dz));
-      }
-      out.push({ id, label: data.clusters[String(id)] ?? "", count: n, center3d, center2d, radius });
+    const m = pts.length;
+    const center3d: [number, number, number] = [c3[0] / m, c3[1] / m, c3[2] / m];
+    const center2d: [number, number] = [c2[0] / m, c2[1] / m];
+    let radius = 0;
+    for (const e of pts) {
+      radius = Math.max(radius, Math.hypot(e[0] - center3d[0], e[1] - center3d[1], e[2] - center3d[2]));
     }
-    return out.sort((a, b) => b.count - a.count);
-  }, [data]);
+    return { center3d, center2d, radius };
+  }
 
   function focusCluster(c: Cluster) {
+    const centre = centroid(members.get(c.id) ?? []);
+    if (!centre) return;
     setMode({ view: "galaxy" });
-    setFocus({ center3d: c.center3d, center2d: c.center2d, radius: c.radius, clusterId: c.id });
+    setFocus({ ...centre, clusterId: c.id });
   }
 
   function focusBook(b: Book) {
+    if (!store) return;
+    const i = store.index.get(b.id)!;
+    const e = store.data.layouts[lens][i] ?? store.data.layouts.all[i];
+    if (!e) return;
     setMode({ view: "galaxy" });
-    setFocus({ center3d: b.coords.xyz, center2d: b.coords.xy, radius: 3, bookId: b.id });
+    setFocus({ center3d: [e[0], e[1], e[2]], center2d: [e[3], e[4]], radius: 3, bookId: b.id });
   }
 
-  if (!data) {
+  function changeLens(l: Lens) {
+    setLens(l);
+    setFocus(null); // centroids differ per layout; reset the view on a lens switch
+  }
+
+  if (!store) {
     return (
       <div style={{ padding: 32, fontFamily: "system-ui", background: "#05060d", color: "#dde3f5", height: "100vh" }}>
         <h2>book-vector</h2>
-        <p>
-          Loading galaxy… (if this never resolves, run the pipeline: it writes{" "}
-          <code>web/public/data/galaxy.json</code>)
-        </p>
+        <p>Loading… (if this never resolves, the pipeline needs to write <code>web/public/data/</code>)</p>
       </div>
     );
   }
@@ -92,38 +97,28 @@ export function App() {
         fontFamily: "system-ui, sans-serif",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          gap: 12,
-          alignItems: "center",
-          flexWrap: "wrap",
-          padding: "10px 14px",
-          borderBottom: "1px solid #171b28",
-        }}
-      >
+      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", padding: "10px 14px", borderBottom: "1px solid #171b28" }}>
         <strong>book-vector</strong>
         <button onClick={() => setThreeD((v) => !v)}>{threeD ? "3D" : "2D"}</button>
         {mode.view === "constellation" && (
           <button onClick={() => setMode({ view: "galaxy" })}>← galaxy</button>
         )}
-        {focus && mode.view === "galaxy" && (
-          <button onClick={() => setFocus(null)}>reset view</button>
-        )}
+        {focus && mode.view === "galaxy" && <button onClick={() => setFocus(null)}>reset view</button>}
         <span style={{ opacity: 0.5, fontSize: 12 }}>
           {mode.view === "galaxy"
-            ? "click a point to dive into its constellation · drag to orbit"
-            : "adjust the facet lens in the sidebar to re-rank neighbors"}
+            ? "toggle the lens (left) to reshape the galaxy · click a point to dive in · drag to orbit"
+            : "switch the lens (left) to re-rank these neighbors"}
         </span>
       </div>
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         <Sidebar
+          store={store}
           clusters={clusters}
-          books={data.books}
+          books={books}
           booksById={booksById}
-          weights={weights}
-          onWeights={setWeights}
+          lens={lens}
+          onLens={changeLens}
           activeClusterId={focus?.clusterId}
           onFocusCluster={focusCluster}
           onFocusBook={focusBook}
@@ -131,17 +126,20 @@ export function App() {
         <main style={{ flex: 1, minWidth: 0, position: "relative" }}>
           {mode.view === "galaxy" ? (
             <Galaxy
-              books={data.books}
-              clusterNames={data.clusters}
+              books={books}
+              layout={store.data.layouts[lens]}
+              lens={lens}
+              clusterNames={store.data.clusters}
               threeD={threeD}
               focus={focus}
               onSelect={(bookId) => setMode({ view: "constellation", bookId })}
             />
           ) : (
             <Constellation
+              store={store}
               book={booksById.get(mode.bookId)!}
               booksById={booksById}
-              weights={weights}
+              lens={lens}
               onSelect={(bookId) => setMode({ view: "constellation", bookId })}
             />
           )}

@@ -17,17 +17,21 @@ BOOKS_JSONL = DATA_DIR / "books.jsonl"        # ingest.py
 FACETS_JSONL = DATA_DIR / "facets.jsonl"      # extract.py
 VECTORS_NPZ = DATA_DIR / "vectors.npz"        # embed.py
 CLUSTERS_JSON = DATA_DIR / "clusters.json"    # cluster.py
-COORDS_JSON = DATA_DIR / "coords.json"        # reduce.py
+LAYOUTS_JSON = DATA_DIR / "layouts.json"      # reduce.py — per-lens coords
+NEIGHBORS_NPZ = DATA_DIR / "neighbors.npz"    # neighbors.py — per-lens top-K
 
-# --- web artifacts (export.py) -------------------------------------------
-# Client-served: the galaxy (coords + metadata + cluster labels).
+# --- web artifacts (export.py) — the app is fully static, no serverless fn ---
+# galaxy.json: metadata + per-lens layouts + cluster labels (client renders it).
+# neighbors.bin: per-lens precomputed nearest neighbors (constellation lookup).
+# midvec.bin: PCA-reduced concat vectors for the client-side midpoint finder.
 WEB_PUBLIC_DATA = PIPELINE_ROOT.parent / "web" / "public" / "data"
 GALAXY_JSON = WEB_PUBLIC_DATA / "galaxy.json"
-# Function-side (not shipped to the browser): int8-quantized per-facet vectors
-# the query function brute-forces over. Pure data — no native modules (D10).
-WEB_FN_DATA = PIPELINE_ROOT.parent / "web" / "data"
-VECTORS_BIN = WEB_FN_DATA / "vectors.bin"
-VECTORS_META = WEB_FN_DATA / "vectors.meta.json"
+NEIGHBORS_BIN = WEB_PUBLIC_DATA / "neighbors.bin"
+MIDVEC_BIN = WEB_PUBLIC_DATA / "midvec.bin"
+
+# --- serving knobs -------------------------------------------------------
+KNN_PRECOMPUTE = 20   # neighbors stored per book per lens
+MID_PCA_DIMS = 128    # concat dims kept for the client-side midpoint finder
 
 # --- source data ---------------------------------------------------------
 # CMU Book Summary Dataset (CC BY-SA). See PLAN.md "Dataset status & access".

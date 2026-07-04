@@ -1,31 +1,33 @@
 import { useState } from "react";
-import type { Book, Cluster, FacetWeights, Midpoint } from "../types";
-import { midpoint as midpointQuery } from "../lib/api";
+import type { Book, Cluster, Lens, Midpoint } from "../types";
+import { midpoint as midpointQuery, type Store } from "../lib/data";
 import { BookPicker } from "./BookPicker";
-import { FacetLens } from "./FacetLens";
+import { LensToggle } from "./LensToggle";
 
 interface Props {
+  store: Store;
   clusters: Cluster[];
   books: Book[];
   booksById: Map<string, Book>;
-  weights: FacetWeights;
-  onWeights: (w: FacetWeights) => void;
+  lens: Lens;
+  onLens: (l: Lens) => void;
   activeClusterId?: number;
   onFocusCluster: (c: Cluster) => void;
   onFocusBook: (b: Book) => void;
 }
 
 /**
- * Left sidebar. The facet lens and the book-in-the-middle finder are pinned to
- * the top; only the "hyperniche genres" (emergent cluster themes) list scrolls
- * beneath them. Clicking a genre flies the galaxy camera to that cluster.
+ * Left sidebar. The lens toggle and the book-in-the-middle finder are pinned to
+ * the top; only the hyperniche-genre list scrolls beneath them. Clicking a
+ * genre flies the galaxy camera to that cluster (in the active lens's layout).
  */
 export function Sidebar({
+  store,
   clusters,
   books,
   booksById,
-  weights,
-  onWeights,
+  lens,
+  onLens,
   activeClusterId,
   onFocusCluster,
   onFocusBook,
@@ -33,10 +35,10 @@ export function Sidebar({
   return (
     <aside style={aside}>
       <div style={pinned}>
-        <div style={sectionTitle}>weight the facets to re-rank neighbors</div>
-        <FacetLens weights={weights} onChange={onWeights} />
+        <div style={sectionTitle}>lens — reshapes the galaxy &amp; neighbors</div>
+        <LensToggle lens={lens} onChange={onLens} />
         <div style={{ height: 16 }} />
-        <Midpoint books={books} booksById={booksById} onFocusBook={onFocusBook} />
+        <Midpoint store={store} books={books} booksById={booksById} onFocusBook={onFocusBook} />
       </div>
 
       <div style={scroller}>
@@ -57,7 +59,7 @@ export function Sidebar({
               <span
                 style={{
                   ...swatch,
-                  background: `hsl(${((c.id * 0.61803398875) % 1) * 360}, 65%, 62%)`,
+                  background: `hsl(${((c.id * 0.61803398875) % 1) * 360}, 70%, 66%)`,
                 }}
               />
               <span style={{ flex: 1 }}>{c.label || `cluster ${c.id}`}</span>
@@ -71,10 +73,12 @@ export function Sidebar({
 }
 
 function Midpoint({
+  store,
   books,
   booksById,
   onFocusBook,
 }: {
+  store: Store;
   books: Book[];
   booksById: Map<string, Book>;
   onFocusBook: (b: Book) => void;
@@ -82,18 +86,14 @@ function Midpoint({
   const [a, setA] = useState<Book | null>(null);
   const [b, setB] = useState<Book | null>(null);
   const [results, setResults] = useState<Midpoint[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function find() {
     if (!a || !b) return;
     setLoading(true);
-    setError(null);
     setResults(null);
     try {
-      setResults(await midpointQuery(a.id, b.id, 6));
-    } catch (e) {
-      setError(String(e));
+      setResults(await midpointQuery(store, a.id, b.id, 6));
     } finally {
       setLoading(false);
     }
@@ -110,7 +110,6 @@ function Midpoint({
         </button>
       </div>
 
-      {error && <p style={{ color: "#ff8a8a", fontSize: 12 }}>{error}</p>}
       {results && results.length === 0 && (
         <p style={{ fontSize: 12, opacity: 0.6 }}>no book between them</p>
       )}
@@ -124,15 +123,11 @@ function Midpoint({
                 onClick={() => book && onFocusBook(book)}
                 style={{ ...row, flexDirection: "column", alignItems: "stretch", gap: 4 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                  <strong style={{ fontSize: 13 }}>
-                    {i === 0 && <span style={{ color: "#9fb4ff" }}>◆ </span>}
-                    {book?.title ?? r.id}
-                  </strong>
-                </div>
-                {book?.author && (
-                  <div style={{ fontSize: 11, opacity: 0.55 }}>{book.author}</div>
-                )}
+                <strong style={{ fontSize: 13 }}>
+                  {i === 0 && <span style={{ color: "#9fb4ff" }}>◆ </span>}
+                  {book?.title ?? r.id}
+                </strong>
+                {book?.author && <div style={{ fontSize: 11, opacity: 0.55 }}>{book.author}</div>}
                 <Balance simToA={r.simToA} simToB={r.simToB} />
               </li>
             );
@@ -143,7 +138,6 @@ function Midpoint({
   );
 }
 
-/** A little A◄──►B bar showing how the book leans between the two anchors. */
 function Balance({ simToA, simToB }: { simToA: number; simToB: number }) {
   const total = simToA + simToB || 1;
   const aPct = (simToA / total) * 100;
@@ -172,22 +166,17 @@ const aside: React.CSSProperties = {
   borderRight: "1px solid #171b28",
   background: "#080a12",
 };
-
-// pinned top: facet lens + midpoint finder — stays put while the list scrolls
 const pinned: React.CSSProperties = {
   flexShrink: 0,
   padding: "12px 14px",
   borderBottom: "1px solid #171b28",
 };
-
-// the only scrolling region: the hyperniche-genre list
 const scroller: React.CSSProperties = {
   flex: 1,
   minHeight: 0,
   overflowY: "auto",
   padding: "12px 14px",
 };
-
 const sectionTitle: React.CSSProperties = {
   fontSize: 12,
   textTransform: "uppercase",
@@ -195,9 +184,7 @@ const sectionTitle: React.CSSProperties = {
   opacity: 0.7,
   marginBottom: 8,
 };
-
 const list: React.CSSProperties = { listStyle: "none", padding: 0, margin: 0 };
-
 const row: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
@@ -210,14 +197,7 @@ const row: React.CSSProperties = {
   marginBottom: 4,
   lineHeight: 1.3,
 };
-
-const swatch: React.CSSProperties = {
-  width: 9,
-  height: 9,
-  borderRadius: "50%",
-  flexShrink: 0,
-};
-
+const swatch: React.CSSProperties = { width: 9, height: 9, borderRadius: "50%", flexShrink: 0 };
 const findBtn: React.CSSProperties = {
   padding: "7px 9px",
   background: "#2b3a6b",

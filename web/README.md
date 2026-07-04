@@ -1,44 +1,47 @@
 # book-vector web
 
-React + react-three-fiber front end: a **galaxy** overview (2D/3D toggle) with a
-scrollable "hyperniche genres" sidebar (click a theme to fly the camera to that
-cluster), a dive-in **constellation** of a book's per-facet nearest neighbors
-driven by composable **facet lenses**, and a **book-in-the-middle** finder that
-locates the book between any two.
+React + react-three-fiber front end. **Fully static** — every query runs in the
+browser over precomputed assets, so there is no serverless function to fail or
+hang (this replaced a flaky Vercel query function).
+
+- **Galaxy** with a **lens toggle**: each lens (`all` + one per facet) is a
+  separate precomputed UMAP layout; toggling reshapes the point cloud (animated)
+  and re-ranks neighbors.
+- **Constellation**: a book's nearest neighbors under the active lens — an
+  instant lookup into a precomputed table.
+- **Book-in-the-middle**: the book between any two, computed client-side over a
+  small PCA-reduced vector file.
+- **Hyperniche-genre sidebar**: click a theme to fly the camera to that cluster.
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
+npm run dev       # http://localhost:5173
+npm run build && npm run preview   # serve the static build
 ```
 
-## Data
+## Data (produced by the pipeline's `export` stage; committed for Vercel)
 
-Produced by the pipeline's `export` stage (committed so Vercel git builds have
-them; regenerate with `pipeline/scripts/run_pipeline.py`):
+- `public/data/galaxy.json` — book metadata, cluster theme labels, and the
+  per-lens layouts (`layouts[lens]` aligned to `books`; `null` where a book is
+  absent from that facet).
+- `public/data/neighbors.bin` — per-lens top-K neighbor indices (uint16) + sims
+  (uint8): all index blocks first (2-byte aligned), then the sim blocks.
+- `public/data/midvec.bin` — int8 PCA-reduced concat vectors for the midpoint
+  finder (loaded lazily on first use).
 
-- `public/data/galaxy.json` — coords + book metadata + cluster theme labels;
-  the galaxy loads this directly in the browser.
-- `data/vectors.bin` + `data/vectors.meta.json` — int8-quantized per-facet
-  vectors the query function brute-forces over (exact cosine). **Pure data, no
-  native modules** — queries run in plain JS, so there is no sqlite-vec /
-  better-sqlite3 to fail to bundle on Vercel. In dev a vite middleware serves
-  `/api/query` from the same `server/queryCore.ts` the Vercel function uses; on
-  Vercel the file ships with the function via `vercel.json` `includeFiles`.
+Regenerate with `pipeline/scripts/run_pipeline.py`.
 
 ## Layout
 
 ```
 src/
-  App.tsx                 # galaxy ⇄ constellation mode switch, cluster/focus state
+  App.tsx                 # loads the store; owns active lens, mode, focus
+  lib/data.ts             # static data layer: neighbors + midpoint in the browser
   components/
-    Galaxy.tsx            # instanced point cloud (2D/3D), cluster colors, fly-to
-    Sidebar.tsx           # hyperniche-genre list + book-in-the-middle finder
-    Constellation.tsx     # nearest neighbors + per-facet "why" chips + facet lens
-    FacetLens.tsx         # weight facets to re-rank neighbors
+    Galaxy.tsx            # instanced points; animates between per-lens layouts
+    LensToggle.tsx        # all / protagonist / relationship / arc / setting
+    Sidebar.tsx           # lens toggle + book-in-the-middle + genre list
+    Constellation.tsx     # precomputed nearest neighbors for the active lens
     BookPicker.tsx        # title autocomplete over the catalog
-    BookTooltip.tsx       # hover card (title, author, cluster theme)
-  lib/api.ts              # client for the query function (neighbors + midpoint)
-server/queryCore.ts       # pure-JS int8 brute-force: neighbors + midpoint
-api/query.ts              # Vercel serverless wrapper around queryCore
-vite.config.ts            # dev middleware exposing /api/query locally
+    BookTooltip.tsx       # hover card
 ```

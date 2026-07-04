@@ -259,26 +259,34 @@ the app has been verified against the artifacts it produced.
   0.65. Margin is thin in absolute terms (bge similarity range is compressed) —
   ranking quality is the metric that matters and is good; tightening this is
   milestone-8 work.
-- **Serving (revised):** the sqlite-vec index was replaced by **pure-JS
-  brute-force over int8-quantized vectors** (`web/data/vectors.bin` +
-  `vectors.meta.json`). `better-sqlite3`/`sqlite-vec` are native modules that
-  did not bundle reliably on Vercel — the function crashed with "A server error
-  has occurred". Plain-data vectors + a JS cosine loop remove that entire
-  failure class, are fully testable locally, and still run every query as exact
-  brute force (D10). Shared `queryCore` runs identically under the vite dev
-  middleware and the Vercel function.
+- **Serving (D9, now fully static — no serverless function):** two prior
+  attempts had a serverless query function (sqlite-vec, then pure-JS over a
+  40 MB vector file); both were unreliable on Vercel (sqlite-vec crashed with
+  "A server error has occurred"; the 40 MB function hung, stuck the constellation
+  on "loading"). The function was **removed entirely**. Everything is
+  precomputed and served as static files, and all queries run in the browser:
+  - **Per-lens layouts** — one UMAP per facet plus `all` (concat). A lens is a
+    discrete toggle, not a live re-projection (UMAP can't run in-browser); the
+    galaxy animates between the precomputed layouts.
+  - **Precomputed neighbors** — each book's top-K under each lens
+    (`neighbors.bin`, 3.9 MB); the constellation is an instant lookup.
+  - **Client-side midpoint** — over a PCA-128 reduced concat (`midvec.bin`,
+    1.7 MB, lazy-loaded).
+  This removes the entire serverless failure class and makes the app a plain
+  static site (no `vercel.json` function config).
 
 ### Post-v1 expansion (this session)
 
 - **Full catalog:** extraction extended from the 2–3k MVP sample to **all
   13,265 eligible books** (summary ≥600 chars) via the incremental Batch path
   (only new books are paid for); 12,914 survived the non-narrative filter.
-- **App features:** a scrollable "hyperniche genres" sidebar (emergent cluster
-  themes) that flies the 3D camera to a clicked cluster while keeping the rest
-  of the structure visible; a **book-in-the-middle** finder (the book maximizing
-  combined per-facet cosine to two chosen books = nearest the cosine-midpoint);
-  facet-lens sliders relocated into the constellation where re-weighting
-  actually re-ranks; unlit point material so no book renders dark against the
+- **App features:** a **lens toggle** (all / protagonist / relationship / arc /
+  setting) that reshapes the galaxy and re-ranks neighbors, pinned atop the
+  sidebar; a scrollable "hyperniche genres" list (351 emergent themes) that
+  flies the 3D camera to a clicked cluster while keeping the rest of the
+  structure visible; a **book-in-the-middle** finder (the book maximizing
+  combined cosine to two chosen books = nearest the cosine-midpoint); unlit
+  point material so no book renders dark against the
   background.
 
 Remaining (milestone 8 / post-v1): granularity-dial iteration against the eval
