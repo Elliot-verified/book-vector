@@ -21,6 +21,9 @@ function clusterColor(cluster: number): THREE.Color {
   return new THREE.Color().setHSL(hue, 0.7, 0.66);
 }
 const HILITE = new THREE.Color("#ffffff");
+// when a cluster/book is focused, everyone else recedes to this muted slate —
+// still visible as context, but the focused points clearly stand out
+const MUTED = new THREE.Color("#363c4c");
 
 /**
  * The galaxy: an instanced point cloud positioned by the *active lens* layout.
@@ -135,11 +138,17 @@ function Points({
     animating.current = true;
   }, [targets, focus]);
 
+  // is anything focused, and is book i part of that focus?
+  const focusing = focus != null && (focus.bookId != null || focus.clusterId != null);
+  const inFocus = (i: number): boolean =>
+    (focus?.bookId != null && books[i].id === focus.bookId) ||
+    (focus?.clusterId != null && books[i].cluster === focus.clusterId);
+
   const scaleFor = (i: number): number => {
     if (!visible[i]) return 0;
     if (focus?.bookId && books[i].id === focus.bookId) return 2.6;
-    if (focus?.clusterId != null && books[i].cluster === focus.clusterId) return 1.9;
-    return 1;
+    if (focus?.clusterId != null && books[i].cluster === focus.clusterId) return 2.4;
+    return focusing ? 0.42 : 1; // shrink the rest so the focused set shows through
   };
 
   useFrame(() => {
@@ -167,11 +176,16 @@ function Points({
     if (moving === 0) animating.current = false;
   });
 
-  // colors (no animation): cluster color, focused book white
+  // colors (no animation): the focused book is white, the focused set keeps its
+  // bright cluster color, and — when something is focused — everyone else recedes
+  // to a muted slate so the focused cluster/book clearly stands out.
   useEffect(() => {
     if (!ref.current) return;
     for (let i = 0; i < n; i++) {
-      const c = focus?.bookId && books[i].id === focus.bookId ? HILITE : clusterColor(books[i].cluster);
+      let c: THREE.Color;
+      if (focus?.bookId && books[i].id === focus.bookId) c = HILITE;
+      else if (focusing && !inFocus(i)) c = MUTED;
+      else c = clusterColor(books[i].cluster);
       ref.current.setColorAt(i, c);
     }
     if (ref.current.instanceColor) ref.current.instanceColor.needsUpdate = true;
