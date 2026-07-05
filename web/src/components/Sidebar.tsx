@@ -14,6 +14,7 @@ interface Props {
   activeClusterId?: number;
   onFocusCluster: (c: Cluster) => void;
   onFocusBook: (b: Book) => void;
+  mobile?: boolean;
 }
 
 /**
@@ -31,9 +32,10 @@ export function Sidebar({
   activeClusterId,
   onFocusCluster,
   onFocusBook,
+  mobile = false,
 }: Props) {
   return (
-    <aside style={aside}>
+    <aside style={mobile ? { ...aside, width: "min(340px, 85vw)" } : aside}>
       <div style={pinned}>
         <div style={sectionTitle}>lens — reshapes the galaxy &amp; neighbors</div>
         <LensToggle lens={lens} onChange={onLens} />
@@ -51,7 +53,7 @@ export function Sidebar({
               key={c.id}
               onClick={() => onFocusCluster(c)}
               style={{
-                ...row,
+                ...(mobile ? rowTouch : row),
                 background: c.id === activeClusterId ? "#182138" : "transparent",
                 borderColor: c.id === activeClusterId ? "#2b3a6b" : "#171b28",
               }}
@@ -197,6 +199,8 @@ const row: React.CSSProperties = {
   marginBottom: 4,
   lineHeight: 1.3,
 };
+// larger, thumb-friendly tap targets for the genre list on touch devices
+const rowTouch: React.CSSProperties = { ...row, padding: "12px 10px", minHeight: 44, fontSize: 14 };
 const swatch: React.CSSProperties = { width: 9, height: 9, borderRadius: "50%", flexShrink: 0 };
 const findBtn: React.CSSProperties = {
   padding: "7px 9px",

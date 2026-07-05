@@ -3,6 +3,7 @@ import { Galaxy } from "./components/Galaxy";
 import { Constellation } from "./components/Constellation";
 import { Sidebar } from "./components/Sidebar";
 import { loadStore, type Store } from "./lib/data";
+import { useIsMobile } from "./lib/useMediaQuery";
 import type { Book, Cluster, Focus, Lens } from "./types";
 
 type Mode = { view: "galaxy" } | { view: "constellation"; bookId: string };
@@ -13,6 +14,8 @@ export function App() {
   const [threeD, setThreeD] = useState(true);
   const [lens, setLens] = useState<Lens>("all");
   const [focus, setFocus] = useState<Focus | null>(null);
+  const isMobile = useIsMobile();
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
     loadStore().then(setStore).catch(() => setStore(null));
@@ -60,6 +63,7 @@ export function App() {
     if (!centre) return;
     setMode({ view: "galaxy" });
     setFocus({ ...centre, clusterId: c.id });
+    setDrawerOpen(false); // on mobile, close the drawer so the galaxy is visible
   }
 
   function focusBook(b: Book) {
@@ -69,6 +73,7 @@ export function App() {
     if (!e) return;
     setMode({ view: "galaxy" });
     setFocus({ center3d: [e[0], e[1], e[2]], center2d: [e[3], e[4]], radius: 3, bookId: b.id });
+    setDrawerOpen(false);
   }
 
   function changeLens(l: Lens) {
@@ -85,6 +90,21 @@ export function App() {
     );
   }
 
+  const sidebar = (
+    <Sidebar
+      store={store}
+      clusters={clusters}
+      books={books}
+      booksById={booksById}
+      lens={lens}
+      onLens={changeLens}
+      activeClusterId={focus?.clusterId}
+      onFocusCluster={focusCluster}
+      onFocusBook={focusBook}
+      mobile={isMobile}
+    />
+  );
+
   return (
     <div
       style={{
@@ -97,32 +117,37 @@ export function App() {
         fontFamily: "system-ui, sans-serif",
       }}
     >
-      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", padding: "10px 14px", borderBottom: "1px solid #171b28" }}>
-        <strong>book-vector</strong>
-        <button onClick={() => setThreeD((v) => !v)}>{threeD ? "3D" : "2D"}</button>
-        {mode.view === "constellation" && (
-          <button onClick={() => setMode({ view: "galaxy" })}>← galaxy</button>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "10px 14px", borderBottom: "1px solid #171b28" }}>
+        {isMobile && (
+          <button onClick={() => setDrawerOpen((v) => !v)} style={menuBtn} aria-label="toggle menu">
+            ☰ genres
+          </button>
         )}
-        {focus && mode.view === "galaxy" && <button onClick={() => setFocus(null)}>reset view</button>}
-        <span style={{ opacity: 0.5, fontSize: 12 }}>
-          {mode.view === "galaxy"
-            ? "toggle the lens (left) to reshape the galaxy · click a point to dive in · drag to orbit"
-            : "switch the lens (left) to re-rank these neighbors"}
-        </span>
+        <strong>book-vector</strong>
+        <button onClick={() => setThreeD((v) => !v)} style={topBtn}>{threeD ? "3D" : "2D"}</button>
+        {mode.view === "constellation" && (
+          <button onClick={() => setMode({ view: "galaxy" })} style={topBtn}>← galaxy</button>
+        )}
+        {focus && mode.view === "galaxy" && <button onClick={() => setFocus(null)} style={topBtn}>reset view</button>}
+        {!isMobile && (
+          <span style={{ opacity: 0.5, fontSize: 12 }}>
+            {mode.view === "galaxy"
+              ? "toggle the lens (left) to reshape the galaxy · click a point to dive in · drag to orbit"
+              : "switch the lens (left) to re-rank these neighbors"}
+          </span>
+        )}
       </div>
 
-      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        <Sidebar
-          store={store}
-          clusters={clusters}
-          books={books}
-          booksById={booksById}
-          lens={lens}
-          onLens={changeLens}
-          activeClusterId={focus?.clusterId}
-          onFocusCluster={focusCluster}
-          onFocusBook={focusBook}
-        />
+      <div style={{ display: "flex", flex: 1, minHeight: 0, position: "relative" }}>
+        {/* Desktop: sidebar inline. Mobile: sidebar as a slide-over drawer. */}
+        {!isMobile && sidebar}
+        {isMobile && drawerOpen && (
+          <>
+            <div onClick={() => setDrawerOpen(false)} style={backdrop} />
+            <div style={drawer}>{sidebar}</div>
+          </>
+        )}
+
         <main style={{ flex: 1, minWidth: 0, position: "relative" }}>
           {mode.view === "galaxy" ? (
             <Galaxy
@@ -148,3 +173,30 @@ export function App() {
     </div>
   );
 }
+
+const topBtn: React.CSSProperties = {
+  minHeight: 40,
+  padding: "6px 12px",
+  background: "#141a2c",
+  color: "#dde3f5",
+  border: "1px solid #232941",
+  borderRadius: 7,
+  cursor: "pointer",
+  fontSize: 14,
+};
+const menuBtn: React.CSSProperties = { ...topBtn, background: "#1d2740", borderColor: "#2b3a6b" };
+
+const backdrop: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  background: "rgba(3,4,10,0.55)",
+  zIndex: 20,
+};
+const drawer: React.CSSProperties = {
+  position: "absolute",
+  top: 0,
+  left: 0,
+  bottom: 0,
+  zIndex: 21,
+  boxShadow: "2px 0 24px rgba(0,0,0,0.5)",
+};

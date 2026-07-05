@@ -36,7 +36,11 @@ export function Galaxy({ books, layout, lens, clusterNames, threeD, focus, onSel
   const [hover, setHover] = useState<{ book: Book; x: number; y: number } | null>(null);
   return (
     <>
-      <Canvas camera={{ position: [0, 0, 32], fov: 60 }}>
+      <Canvas
+        camera={{ position: [0, 0, 32], fov: 60 }}
+        dpr={[1, 1.5]} // cap pixel ratio so retina phones don't render at 3× (big GPU win)
+        style={{ touchAction: "none" }} // let OrbitControls own touch gestures; don't scroll the page
+      >
         <Points
           books={books}
           layout={layout}
@@ -204,7 +208,7 @@ function Points({
       }}
       onPointerOut={() => onHover(null, 0, 0)}
     >
-      <sphereGeometry args={[0.16, 8, 8]} />
+      <sphereGeometry args={[0.16, 6, 6]} />
       <meshBasicMaterial toneMapped={false} />
     </instancedMesh>
   );
