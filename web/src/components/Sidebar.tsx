@@ -13,6 +13,7 @@ interface Props {
   onLens: (l: Lens) => void;
   activeClusterId?: number;
   onFocusCluster: (c: Cluster) => void;
+  onOpenGenre: (c: Cluster) => void;
   onFocusBook: (b: Book) => void;
   mobile?: boolean;
 }
@@ -31,6 +32,7 @@ export function Sidebar({
   onLens,
   activeClusterId,
   onFocusCluster,
+  onOpenGenre,
   onFocusBook,
   mobile = false,
 }: Props) {
@@ -52,6 +54,8 @@ export function Sidebar({
             <li
               key={c.id}
               onClick={() => onFocusCluster(c)}
+              onDoubleClick={() => onOpenGenre(c)}
+              title="click to fly there · double-click to list its books"
               style={{
                 ...(mobile ? rowTouch : row),
                 background: c.id === activeClusterId ? "#182138" : "transparent",
@@ -66,6 +70,16 @@ export function Sidebar({
               />
               <span style={{ flex: 1 }}>{c.label || `cluster ${c.id}`}</span>
               <span style={{ opacity: 0.45, fontSize: 11 }}>{c.count}</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenGenre(c);
+                }}
+                title="list the books in this genre"
+                style={listBtn}
+              >
+                books ›
+              </button>
             </li>
           ))}
         </ul>
@@ -202,6 +216,18 @@ const row: React.CSSProperties = {
 // larger, thumb-friendly tap targets for the genre list on touch devices
 const rowTouch: React.CSSProperties = { ...row, padding: "12px 10px", minHeight: 44, fontSize: 14 };
 const swatch: React.CSSProperties = { width: 9, height: 9, borderRadius: "50%", flexShrink: 0 };
+// explicit "list the books" affordance — so opening a genre doesn't rely on
+// double-click/double-tap (which is awkward on touch)
+const listBtn: React.CSSProperties = {
+  flexShrink: 0,
+  padding: "3px 8px",
+  fontSize: 11,
+  color: "#9fb4ff",
+  background: "transparent",
+  border: "1px solid #232941",
+  borderRadius: 6,
+  cursor: "pointer",
+};
 const findBtn: React.CSSProperties = {
   padding: "7px 9px",
   background: "#2b3a6b",

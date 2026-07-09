@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { Galaxy } from "./components/Galaxy";
 import { Constellation } from "./components/Constellation";
+import { GenreList } from "./components/GenreList";
 import { Sidebar } from "./components/Sidebar";
 import { loadStore, type Store } from "./lib/data";
 import { useIsMobile } from "./lib/useMediaQuery";
 import type { Book, Cluster, Focus, Lens } from "./types";
 
-type Mode = { view: "galaxy" } | { view: "constellation"; bookId: string };
+type Mode =
+  | { view: "galaxy" }
+  | { view: "constellation"; bookId: string }
+  | { view: "genre"; clusterId: number };
 
 export function App() {
   const [store, setStore] = useState<Store | null>(null);
@@ -66,6 +70,12 @@ export function App() {
     setDrawerOpen(false); // on mobile, close the drawer so the galaxy is visible
   }
 
+  function openGenre(c: Cluster) {
+    setMode({ view: "genre", clusterId: c.id });
+    setFocus({ ...(centroid(members.get(c.id) ?? []) ?? { center3d: [0, 0, 0], center2d: [0, 0], radius: 3 }), clusterId: c.id });
+    setDrawerOpen(false);
+  }
+
   function focusBook(b: Book) {
     if (!store) return;
     const i = store.index.get(b.id)!;
@@ -100,6 +110,7 @@ export function App() {
       onLens={changeLens}
       activeClusterId={focus?.clusterId}
       onFocusCluster={focusCluster}
+      onOpenGenre={openGenre}
       onFocusBook={focusBook}
       mobile={isMobile}
     />
@@ -124,15 +135,19 @@ export function App() {
           </button>
         )}
         <strong>book-vector</strong>
-        <button onClick={() => setThreeD((v) => !v)} style={topBtn}>{threeD ? "3D" : "2D"}</button>
-        {mode.view === "constellation" && (
+        {mode.view === "galaxy" && (
+          <button onClick={() => setThreeD((v) => !v)} style={topBtn}>{threeD ? "3D" : "2D"}</button>
+        )}
+        {mode.view !== "galaxy" && (
           <button onClick={() => setMode({ view: "galaxy" })} style={topBtn}>← galaxy</button>
         )}
         {focus && mode.view === "galaxy" && <button onClick={() => setFocus(null)} style={topBtn}>reset view</button>}
         {!isMobile && (
           <span style={{ opacity: 0.5, fontSize: 12 }}>
             {mode.view === "galaxy"
-              ? "toggle the lens (left) to reshape the galaxy · click a point to dive in · drag to orbit"
+              ? "toggle a lens (left) to reshape the galaxy · click a genre to fly there, double-click to list its books · drag to orbit"
+              : mode.view === "genre"
+              ? "click a book to see its constellation of neighbors"
               : "switch the lens (left) to re-rank these neighbors"}
           </span>
         )}
@@ -149,7 +164,7 @@ export function App() {
         )}
 
         <main style={{ flex: 1, minWidth: 0, position: "relative" }}>
-          {mode.view === "galaxy" ? (
+          {mode.view === "galaxy" && (
             <Galaxy
               books={books}
               layout={store.data.layouts[lens]}
@@ -159,7 +174,16 @@ export function App() {
               focus={focus}
               onSelect={(bookId) => setMode({ view: "constellation", bookId })}
             />
-          ) : (
+          )}
+          {mode.view === "genre" && (
+            <GenreList
+              label={store.data.clusters[String(mode.clusterId)] ?? ""}
+              clusterId={mode.clusterId}
+              books={(members.get(mode.clusterId) ?? []).map((i) => books[i])}
+              onSelect={(bookId) => setMode({ view: "constellation", bookId })}
+            />
+          )}
+          {mode.view === "constellation" && (
             <Constellation
               store={store}
               book={booksById.get(mode.bookId)!}
