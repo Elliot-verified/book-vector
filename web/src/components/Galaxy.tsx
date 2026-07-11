@@ -142,15 +142,25 @@ function Points({
     animating.current = true;
   }, [targets, focus]);
 
+  // the searched book's nearest neighbors, as a fast lookup set
+  const neighborSet = useMemo(
+    () => new Set(focus?.neighborIds ?? []),
+    [focus],
+  );
+
   // is anything focused, and is book i part of that focus?
-  const focusing = focus != null && (focus.bookId != null || focus.clusterId != null);
+  const focusing =
+    focus != null && (focus.bookId != null || focus.clusterId != null || neighborSet.size > 0);
+  const isNeighbor = (i: number): boolean => neighborSet.has(books[i].id);
   const inFocus = (i: number): boolean =>
     (focus?.bookId != null && books[i].id === focus.bookId) ||
-    (focus?.clusterId != null && books[i].cluster === focus.clusterId);
+    (focus?.clusterId != null && books[i].cluster === focus.clusterId) ||
+    isNeighbor(i);
 
   const scaleFor = (i: number): number => {
     if (!visible[i]) return 0;
     if (focus?.bookId && books[i].id === focus.bookId) return 2.6;
+    if (isNeighbor(i)) return 2.0;
     if (focus?.clusterId != null && books[i].cluster === focus.clusterId) return 2.4;
     return focusing ? 0.42 : 1; // shrink the rest so the focused set shows through
   };

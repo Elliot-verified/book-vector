@@ -70,4 +70,5 @@ export interface Focus {
   radius: number;
   clusterId?: number;
   bookId?: string;
+  neighborIds?: string[]; // when searching a book: its nearest neighbors to light up
 }

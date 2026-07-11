@@ -15,6 +15,8 @@ interface Props {
   onFocusCluster: (c: Cluster) => void;
   onOpenGenre: (c: Cluster) => void;
   onFocusBook: (b: Book) => void;
+  onSearchBook: (b: Book) => void;
+  onOpenBook: (bookId: string) => void;
   mobile?: boolean;
 }
 
@@ -34,6 +36,8 @@ export function Sidebar({
   onFocusCluster,
   onOpenGenre,
   onFocusBook,
+  onSearchBook,
+  onOpenBook,
   mobile = false,
 }: Props) {
   return (
@@ -41,6 +45,8 @@ export function Sidebar({
       <div style={pinned}>
         <div style={sectionTitle}>lens — reshapes the galaxy &amp; neighbors</div>
         <LensToggle lens={lens} onChange={onLens} />
+        <div style={{ height: 16 }} />
+        <FindBook books={books} onSearchBook={onSearchBook} onOpenBook={onOpenBook} />
         <div style={{ height: 16 }} />
         <Midpoint store={store} books={books} booksById={booksById} onFocusBook={onFocusBook} />
       </div>
@@ -85,6 +91,39 @@ export function Sidebar({
         </ul>
       </div>
     </aside>
+  );
+}
+
+function FindBook({
+  books,
+  onSearchBook,
+  onOpenBook,
+}: {
+  books: Book[];
+  onSearchBook: (b: Book) => void;
+  onOpenBook: (bookId: string) => void;
+}) {
+  const [book, setBook] = useState<Book | null>(null);
+
+  function select(b: Book | null) {
+    setBook(b);
+    if (b) onSearchBook(b); // light up the book + its neighbors in the galaxy
+  }
+
+  return (
+    <div>
+      <div style={sectionTitle}>find your book</div>
+      <BookPicker books={books} label="search a title…" selected={book} onSelect={select} />
+      {book && (
+        <div style={{ marginTop: 8, fontSize: 12, opacity: 0.75, lineHeight: 1.4 }}>
+          <span style={{ color: "#fff" }}>◍</span> {book.title} and its nearest neighbors are
+          highlighted in the galaxy.
+          <button onClick={() => onOpenBook(book.id)} style={linkBtn}>
+            see the full list ›
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -227,6 +266,16 @@ const listBtn: React.CSSProperties = {
   border: "1px solid #232941",
   borderRadius: 6,
   cursor: "pointer",
+};
+const linkBtn: React.CSSProperties = {
+  display: "block",
+  marginTop: 6,
+  padding: 0,
+  background: "none",
+  border: "none",
+  color: "#9fb4ff",
+  cursor: "pointer",
+  fontSize: 12,
 };
 const findBtn: React.CSSProperties = {
   padding: "7px 9px",

@@ -3,7 +3,7 @@ import { Galaxy } from "./components/Galaxy";
 import { Constellation } from "./components/Constellation";
 import { GenreList } from "./components/GenreList";
 import { Sidebar } from "./components/Sidebar";
-import { loadStore, type Store } from "./lib/data";
+import { loadStore, neighborsOf, type Store } from "./lib/data";
 import { useIsMobile } from "./lib/useMediaQuery";
 import type { Book, Cluster, Focus, Lens } from "./types";
 
@@ -86,6 +86,33 @@ export function App() {
     setDrawerOpen(false);
   }
 
+  // Search a book and light up its nearest neighbors in the galaxy: fly to the
+  // book, frame it with its neighbors, and highlight the whole set.
+  function searchBook(b: Book) {
+    if (!store) return;
+    const layout = store.data.layouts[lens];
+    const i = store.index.get(b.id)!;
+    const e = layout[i] ?? store.data.layouts.all[i];
+    if (!e) return;
+    const nbrs = neighborsOf(store, b.id, lens, 12);
+    const center3d: [number, number, number] = [e[0], e[1], e[2]];
+    // frame the book plus whichever neighbors are present in this lens's layout
+    let radius = 3;
+    for (const n of nbrs) {
+      const p = layout[store.index.get(n.id) ?? -1];
+      if (p) radius = Math.max(radius, Math.hypot(p[0] - e[0], p[1] - e[1], p[2] - e[2]));
+    }
+    setMode({ view: "galaxy" });
+    setFocus({
+      center3d,
+      center2d: [e[3], e[4]],
+      radius,
+      bookId: b.id,
+      neighborIds: nbrs.map((n) => n.id),
+    });
+    setDrawerOpen(false);
+  }
+
   function changeLens(l: Lens) {
     setLens(l);
     setFocus(null); // centroids differ per layout; reset the view on a lens switch
@@ -112,6 +139,8 @@ export function App() {
       onFocusCluster={focusCluster}
       onOpenGenre={openGenre}
       onFocusBook={focusBook}
+      onSearchBook={searchBook}
+      onOpenBook={(bookId) => setMode({ view: "constellation", bookId })}
       mobile={isMobile}
     />
   );
